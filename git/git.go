@@ -128,7 +128,7 @@ func (r Repo) diff(ctx context.Context, c Changes, flags, pathspecs []string) (s
 		args = []string{"diff", base}
 	}
 
-	args = append(args, "--no-color", "--no-relative", "--no-textconv")
+	args = append(args, "--no-color", "--no-relative", "--no-textconv", "--ignore-submodules=none")
 	args = append(args, flags...)
 	args = append(args, "--")
 	args = append(args, pathspecs...)

@@ -226,6 +226,44 @@ func TestDiffIgnoresTextconv(t *testing.T) {
 	}
 }
 
+func TestDiffIgnoresSubmoduleIgnoreConfig(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t)
+	ctx := t.Context()
+	gitCmd(t, r.Dir, "config", "diff.ignoreSubmodules", "all")
+	first := strings.Repeat("1", 40)
+	second := strings.Repeat("2", 40)
+	gitCmd(t, r.Dir, "update-index", "--add", "--cacheinfo", "160000,"+first+",module")
+
+	before, err := r.Snapshot(ctx, Changes{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gitCmd(t, r.Dir, "update-index", "--cacheinfo", "160000,"+second+",module")
+	after, err := r.Snapshot(ctx, Changes{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before == after {
+		t.Error("Snapshot did not change after updating the staged submodule reference")
+	}
+
+	diff, err := r.Diff(ctx, Changes{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(diff, second) {
+		t.Errorf("Diff = %q; want updated submodule reference", diff)
+	}
+	stat, err := r.Stat(ctx, Changes{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stat, "module") {
+		t.Errorf("Stat = %q; want module", stat)
+	}
+}
+
 func TestSnapshot(t *testing.T) {
 	t.Parallel()
 	r := setupMixedChanges(t)
