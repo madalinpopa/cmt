@@ -176,12 +176,6 @@ Requires Go 1.27.4+, [Task](https://taskfile.dev), and [golangci-lint](https://g
 | [`internal/provider`](internal/provider) | Anthropic, OpenAI, Gemini, and Copilot providers |
 | [`internal/vcs`](internal/vcs) | Git operations through the `git` binary |
 
-The demo is recorded with [VHS](https://github.com/charmbracelet/vhs) and calls the configured provider:
-
-```sh
-vhs docs/demo.tape
-```
-
 ## Contributing
 
 1. Open an issue for significant changes before starting work.
