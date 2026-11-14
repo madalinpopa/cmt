@@ -75,7 +75,7 @@ func newTestRepo(t *testing.T) string {
 func newTestRunner(dir string, p *fakeProvider, env map[string]string) runner {
 	return runner{
 		repo:        vcs.Repo{Dir: dir},
-		newProvider: func(string, string) (commit.Provider, error) { return p, nil },
+		newProvider: func(context.Context, string, string) (commit.Provider, error) { return p, nil },
 		getenv:      func(key string) string { return env[key] },
 	}
 }
@@ -172,7 +172,7 @@ func TestYesRejectsChangesModifiedDuringGeneration(t *testing.T) {
 	cmd.SetErr(&bytes.Buffer{})
 
 	r := newTestRunner(dir, nil, nil)
-	r.newProvider = func(string, string) (commit.Provider, error) { return p, nil }
+	r.newProvider = func(context.Context, string, string) (commit.Provider, error) { return p, nil }
 	if err := r.run(t.Context(), cmd, rootOptions{yes: true, all: true}, nil); !errors.Is(err, errChangesModified) {
 		t.Fatalf("run error = %v, want %v", err, errChangesModified)
 	}
@@ -252,7 +252,7 @@ func TestRunClosesProvider(t *testing.T) {
 
 	p := &closingProvider{msg: commit.Message{Type: "fix", Subject: "change a"}}
 	r := newTestRunner(dir, nil, nil)
-	r.newProvider = func(string, string) (commit.Provider, error) { return p, nil }
+	r.newProvider = func(context.Context, string, string) (commit.Provider, error) { return p, nil }
 
 	cmd := &command.Command{}
 	cmd.SetOut(&bytes.Buffer{})
@@ -267,12 +267,22 @@ func TestRunClosesProvider(t *testing.T) {
 func TestNewProvider(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{"", "anthropic", "openai"} {
-		if _, err := newProvider(name, ""); err != nil {
+		if _, err := newProvider(t.Context(), name, ""); err != nil {
 			t.Errorf("newProvider(%q): %v", name, err)
 		}
 	}
-	_, err := newProvider("gemini", "")
+	_, err := newProvider(t.Context(), "mistral", "")
 	if _, ok := errors.AsType[*command.UsageError](err); !ok {
-		t.Errorf("newProvider(gemini) error = %v; want *command.UsageError", err)
+		t.Errorf("newProvider(mistral) error = %v; want *command.UsageError", err)
+	}
+}
+
+func TestNewProviderGemini(t *testing.T) {
+	t.Setenv("GEMINI_API_KEY", "test-key")
+	t.Setenv("GOOGLE_API_KEY", "")
+	t.Setenv("GOOGLE_GENAI_USE_VERTEXAI", "")
+	t.Setenv("GOOGLE_GENAI_USE_ENTERPRISE", "")
+	if _, err := newProvider(t.Context(), "gemini", ""); err != nil {
+		t.Errorf("newProvider(gemini): %v", err)
 	}
 }
