@@ -1,0 +1,15 @@
+/cmt
+*.exe
+*.test
+*.out
+/dist/
+
+go.work
+go.work.sum
+
+.env
+.env.*
+
+.idea/
+.vscode/
+.DS_Store
