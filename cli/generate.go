@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/madalinpopa/cmt/command"
@@ -24,15 +25,25 @@ func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args [
 		return errors.New("interactive confirmation is not implemented yet; use --yes or --dry-run")
 	}
 
+	maxDiffBytes, err := parseMaxDiffBytes(os.Getenv("CMT_MAX_DIFF_BYTES"))
+	if err != nil {
+		return err
+	}
+
 	repo := git.Repo{}
 	changes := git.Staged
 	if opts.all {
 		changes = git.Tracked
 	}
 
-	in, err := collectInput(ctx, repo, changes, opts)
+	in, err := collectInput(ctx, repo, changes, maxDiffBytes, opts)
 	if err != nil {
 		return err
+	}
+	if in.DiffTruncated {
+		if _, err := fmt.Fprintf(cmd.Err(), "warning: diff is larger than %d bytes (CMT_MAX_DIFF_BYTES); sending a partial diff\n", maxDiffBytes); err != nil {
+			return err
+		}
 	}
 
 	msg, err := commit.Generate(ctx, anthropic.New(opts.model), in)
@@ -53,19 +64,20 @@ func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args [
 	return err
 }
 
-func collectInput(ctx context.Context, repo git.Repo, changes git.Changes, opts rootOptions) (commit.Input, error) {
-	diff, err := repo.Diff(ctx, changes)
-	if err != nil {
-		return commit.Input{}, err
-	}
-	if strings.TrimSpace(diff) == "" {
-		return commit.Input{}, errNothingToCommit
-	}
-
+func collectInput(ctx context.Context, repo git.Repo, changes git.Changes, maxDiffBytes int, opts rootOptions) (commit.Input, error) {
 	stat, err := repo.Stat(ctx, changes)
 	if err != nil {
 		return commit.Input{}, err
 	}
+	if strings.TrimSpace(stat) == "" {
+		return commit.Input{}, errNothingToCommit
+	}
+
+	diff, err := repo.Diff(ctx, changes, excludedGlobs()...)
+	if err != nil {
+		return commit.Input{}, err
+	}
+	diff, truncated := truncateDiff(diff, maxDiffBytes)
 
 	commits, err := repo.RecentCommits(ctx, recentCommitCount)
 	if err != nil {
@@ -89,5 +101,7 @@ func collectInput(ctx context.Context, repo git.Repo, changes git.Changes, opts 
 		Branch:  branch,
 		Hint:    opts.context,
 		Style:   style,
+
+		DiffTruncated: truncated,
 	}, nil
 }
