@@ -17,8 +17,7 @@ type Command struct {
 	Example string
 	Run     func(ctx context.Context, c *Command, args []string) error
 
-	flags    *flag.FlagSet
-	required []string
+	flags *flag.FlagSet
 
 	in     io.Reader
 	out    io.Writer
@@ -40,12 +39,6 @@ func (c *Command) Execute(ctx context.Context, args []string) error {
 
 	if err != nil {
 		return &UsageError{Message: err.Error()}
-	}
-
-	if missing := c.missingRequired(fs); len(missing) > 0 {
-		return &UsageError{
-			Message: fmt.Sprintf("required flag(s) not set: %s", strings.Join(missing, ", ")),
-		}
 	}
 
 	if c.Run == nil {

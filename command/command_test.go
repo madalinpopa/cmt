@@ -82,17 +82,6 @@ func TestExecuteUsageErrors(t *testing.T) {
 	t.Parallel()
 	var got []string
 	c, _, _ := newTestCommand(&got)
-	c.MarkRequired("context", "all")
-
-	err := c.Execute(t.Context(), []string{"--all"})
-	uerr, ok := errors.AsType[*UsageError](err)
-	if !ok {
-		t.Fatalf("missing required: err = %v, want *UsageError", err)
-	}
-	if !strings.Contains(uerr.Message, "--context") || strings.Contains(uerr.Message, "--all") {
-		t.Errorf("message = %q", uerr.Message)
-	}
-
 	if _, ok := errors.AsType[*UsageError](c.Execute(t.Context(), []string{"--nope"})); !ok {
 		t.Error("unknown flag: want *UsageError")
 	}
