@@ -5,7 +5,7 @@ go 1.27.4
 require (
 	github.com/anthropics/anthropic-sdk-go/v2 v2.9.0
 	github.com/github/copilot-sdk/go v1.0.34
-	golang.org/x/term v0.35.0
+	golang.org/x/term v0.47.0
 )
 
 require (
@@ -32,5 +32,5 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 )
