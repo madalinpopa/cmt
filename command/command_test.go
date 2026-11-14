@@ -98,7 +98,7 @@ func TestExecuteNilRunPrintsUsage(t *testing.T) {
 	c := &Command{Use: "cmt"}
 	var out bytes.Buffer
 	c.SetOut(&out)
-	if err := c.Execute(context.Background(), nil); err != nil {
+	if err := c.Execute(t.Context(), nil); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	if !strings.Contains(out.String(), "Usage:\n  cmt") {

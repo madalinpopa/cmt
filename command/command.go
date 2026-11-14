@@ -35,8 +35,7 @@ func (c *Command) Execute(ctx context.Context, args []string) error {
 
 	err := fs.Parse(args)
 	if errors.Is(err, flag.ErrHelp) {
-		c.PrintUsage(c.Out())
-		return nil
+		return c.PrintUsage(c.Out())
 	}
 
 	if err != nil {
@@ -50,13 +49,12 @@ func (c *Command) Execute(ctx context.Context, args []string) error {
 	}
 
 	if c.Run == nil {
-		c.PrintUsage(c.Out())
-		return nil
+		return c.PrintUsage(c.Out())
 	}
 	return c.Run(ctx, c, fs.Args())
 }
 
-func (c *Command) PrintUsage(w io.Writer) {
+func (c *Command) PrintUsage(w io.Writer) error {
 	var b strings.Builder
 
 	if desc := cmp.Or(c.Long, c.Short); desc != "" {
@@ -85,5 +83,6 @@ func (c *Command) PrintUsage(w io.Writer) {
 		b.WriteString("\n")
 	}
 
-	_, _ = io.WriteString(w, b.String())
+	_, err := io.WriteString(w, b.String())
+	return err
 }
