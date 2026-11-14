@@ -23,10 +23,6 @@ func newFlagSet(name string) *flag.FlagSet {
 	return fs
 }
 
-func isFlagArg(arg string) bool {
-	return len(arg) > 1 && arg[0] == '-'
-}
-
 func (c *Command) missingRequired(fs *flag.FlagSet) []string {
 	wanted := slices.Clone(c.required)
 	set := make(map[string]bool)

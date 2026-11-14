@@ -24,7 +24,7 @@ func newTestCommand(got *[]string) (*Command, *bool, *string) {
 	return c, all, msg
 }
 
-func TestExecuteInterspersedFlags(t *testing.T) {
+func TestExecuteFlags(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    []string
@@ -34,9 +34,10 @@ func TestExecuteInterspersedFlags(t *testing.T) {
 	}{
 		{"no args", nil, nil, false, ""},
 		{"flags only", []string{"--all", "-context", "x"}, nil, true, "x"},
-		{"flags after positional", []string{"a", "--all", "b", "--context=y"}, []string{"a", "b"}, true, "y"},
+		{"flags then positional", []string{"--all", "--context=y", "a", "b"}, []string{"a", "b"}, true, "y"},
+		{"flags after positional are positional", []string{"a", "--all"}, []string{"a", "--all"}, false, ""},
 		{"terminator", []string{"--all", "--", "--context", "z"}, []string{"--context", "z"}, true, ""},
-		{"single dash is positional", []string{"-", "--all"}, []string{"-"}, true, ""},
+		{"single dash is positional", []string{"-", "--all"}, []string{"-", "--all"}, false, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

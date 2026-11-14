@@ -31,16 +31,14 @@ func (c *Command) Name() string {
 }
 
 func (c *Command) Execute(ctx context.Context, args []string) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	fs := c.Flags()
-	positional, err := parseInterspersed(fs, args)
+
+	err := fs.Parse(args)
 	if errors.Is(err, flag.ErrHelp) {
 		c.PrintUsage(c.Out())
 		return nil
 	}
+
 	if err != nil {
 		return &UsageError{Message: err.Error()}
 	}
@@ -55,33 +53,7 @@ func (c *Command) Execute(ctx context.Context, args []string) error {
 		c.PrintUsage(c.Out())
 		return nil
 	}
-	return c.Run(ctx, c, positional)
-}
-
-func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
-	var positional []string
-	rest := args
-	for len(rest) > 0 {
-		if err := fs.Parse(rest); err != nil {
-			return nil, err
-		}
-
-		consumed := len(rest) - len(fs.Args())
-		terminated := consumed > 0 && rest[consumed-1] == "--"
-		rest = fs.Args()
-
-		if terminated {
-			positional = append(positional, rest...)
-			break
-		}
-		// fs.Parse only stops early at a non-flag argument, so rest[0]
-		// (if any) is positional.
-		if len(rest) > 0 {
-			positional = append(positional, rest[0])
-			rest = rest[1:]
-		}
-	}
-	return positional, nil
+	return c.Run(ctx, c, fs.Args())
 }
 
 func (c *Command) PrintUsage(w io.Writer) {
