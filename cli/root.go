@@ -22,12 +22,13 @@ func NewRootCommand() *command.Command {
 	var opts rootOptions
 
 	cmd := &command.Command{
-		Use:   "cmt [flags]",
+		Use:   "cmt [flags] [--] [path...]",
 		Short: "Generate git commit messages from your staged changes with Claude, then commit them.",
 		Example: `cmt -a
 cmt --dry-run
 cmt -c "closes #42"
 cmt -a -y
+cmt --dry-run -- README.md cli/
 cmt --model claude-opus-5-5`,
 		Run: func(ctx context.Context, cmd *command.Command, args []string) error {
 			return runRoot(ctx, cmd, opts, args)
