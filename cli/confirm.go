@@ -2,11 +2,17 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+
+	"golang.org/x/term"
+
+	"github.com/madalinpopa/cmt/command"
+	"github.com/madalinpopa/cmt/vcs"
 )
 
 type choice int
@@ -55,6 +61,57 @@ func isTerminal(r io.Reader) bool {
 	if !ok {
 		return false
 	}
-	info, err := f.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(f.Fd()))
+}
+
+func confirmAndCommit(ctx context.Context, cmd *command.Command, repo vcs.Repo, changes vcs.Changes, d draft, regenerate func() (draft, error)) error {
+	answers := bufio.NewReader(cmd.In())
+	for {
+		if _, err := fmt.Fprintf(cmd.Out(), "%s\n\n", d.msg); err != nil {
+			return err
+		}
+
+		c, err := askChoice(answers, cmd.Out())
+		if err != nil {
+			return err
+		}
+		if c, err = regenerateIfChanged(ctx, cmd, repo, changes, d, c); err != nil {
+			return err
+		}
+
+		switch c {
+		case choiceCommit:
+			return commitMessage(ctx, cmd, repo, d.msg.String(), changes)
+		case choiceEdit:
+			return repo.CommitEdited(ctx, d.msg.String(), changes, cmd.In(), cmd.Out(), cmd.Err())
+		case choiceCancel:
+			_, err := fmt.Fprintln(cmd.Out(), "Canceled.")
+			return err
+		case choiceRegenerate:
+			if d, err = regenerate(); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func regenerateIfChanged(ctx context.Context, cmd *command.Command, repo vcs.Repo, changes vcs.Changes, d draft, c choice) (choice, error) {
+	if c != choiceCommit && c != choiceEdit {
+		return c, nil
+	}
+	changed, err := d.changed(ctx, repo, changes)
+	if err != nil || !changed {
+		return c, err
+	}
+	_, err = fmt.Fprintln(cmd.Err(), "Changes were modified after the message was generated; regenerating.")
+	return choiceRegenerate, err
+}
+
+func commitMessage(ctx context.Context, cmd *command.Command, repo vcs.Repo, message string, changes vcs.Changes) error {
+	out, err := repo.Commit(ctx, message, changes)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(cmd.Out(), out)
+	return err
 }

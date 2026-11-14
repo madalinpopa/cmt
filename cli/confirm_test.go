@@ -106,6 +106,25 @@ func TestIsTerminal(t *testing.T) {
 	if isTerminal(f) {
 		t.Error("regular file reported as terminal")
 	}
+
+	null, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := null.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if isTerminal(null) {
+		t.Error("null device reported as terminal")
+	}
+
+	cmd := &command.Command{}
+	cmd.SetIn(null)
+	if err := defaultRunner().run(t.Context(), cmd, rootOptions{}, nil); err == nil || !strings.Contains(err.Error(), "not a terminal") {
+		t.Errorf("run with null device error = %v; want terminal error", err)
+	}
 }
 
 func TestRunRootRequiresTerminal(t *testing.T) {
