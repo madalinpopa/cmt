@@ -76,6 +76,8 @@ tasks:
     preconditions:
       - sh: git fetch --quiet origin main && git merge-base --is-ancestor HEAD origin/main
         msg: HEAD is not on origin/main; push main first, since the release workflow rejects other commits.
+      - sh: '[ "$(gh run list --workflow ci.yml --branch main --event push --commit "$(git rev-parse HEAD)" --status success --json databaseId --jq length)" -gt 0 ]'
+        msg: CI has not passed on HEAD yet; wait for the CI workflow on main to succeed.
       - sh: '! git rev-parse -q --verify "refs/tags/{{.NEXT}}" >/dev/null'
         msg: Tag {{.NEXT}} already exists.
       - sh: git diff --quiet HEAD
