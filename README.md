@@ -1,55 +1,70 @@
 # cmt
 
-Generate git commit messages from your staged changes with Claude or GitHub Copilot, then commit them.
+`cmt` is a command-line tool that writes a git commit message for your changes and then commits them. It sends the diff, a file summary, the current branch, and your recent commit subjects to Claude (Anthropic API) or GitHub Copilot, and returns a [Conventional Commits](https://www.conventionalcommits.org/) message that you can accept, edit, or regenerate. It is meant for developers who want consistent commit messages without writing each one by hand.
+
+The commit itself is made with `git commit`, so your hooks, signing, and git config still apply.
 
 > **Status:** early development — the interface may still change before v1.
 
-## How it works
+## Installation and quick start
 
-1. Reads the diff of what will be committed, the changed-file summary, recent commit subjects (to match your style), and the current branch name.
-2. Sends them to the selected provider (Anthropic API or GitHub Copilot) and gets back a structured [Conventional Commits](https://www.conventionalcommits.org/) message.
-3. Shows the message and asks what to do: commit, edit, regenerate, or cancel.
-4. Commits with `git commit`, so your hooks, signing, and git config still apply.
+Requirements:
 
-## Installation
+- Go 1.27.4 or newer (from `go.mod`)
+- `git` in your `PATH`
+- Credentials for one provider: an Anthropic API key, or the [GitHub Copilot CLI](https://github.com/github/copilot-cli) signed in
+
+Install:
 
 ```sh
 go install github.com/madalinpopa/cmt@latest
 ```
 
-## Authentication
-
-`cmt` uses the official Anthropic Go SDK and picks up credentials automatically. Either:
+Set up credentials for the default provider (Anthropic):
 
 ```sh
-export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_API_KEY=<your-api-key>
 ```
 
-or sign in once with the Anthropic CLI:
-
-```sh
-ant auth login
-```
-
-### GitHub Copilot
-
-With `--provider copilot`, `cmt` uses the [GitHub Copilot SDK](https://github.com/github/copilot-sdk), which runs the [Copilot CLI](https://github.com/github/copilot-cli) in the background. Install the CLI, sign in once with `copilot`, and make sure `copilot` is in your `PATH` (or set `COPILOT_CLI_PATH`). The CLI also accepts a token from `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, or `GITHUB_TOKEN`. Requests count against your Copilot plan.
-
-```sh
-cmt --provider copilot
-```
-
-## Usage
+Stage a change and run `cmt` inside the repository:
 
 ```sh
 git add -p
 cmt
 ```
 
-Example session:
+`cmt` prints the generated message and a menu. Type `y` and press Enter to commit.
+
+## Usage
 
 ```text
-$ cmt
+cmt [flags] [--] [path...]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-a`, `--all` | Include unstaged changes to tracked files, like `git commit -a`; cannot be combined with paths |
+| `-y`, `--yes` | Commit without asking for confirmation |
+| `--dry-run` | Print the generated message to stdout without committing |
+| `-c`, `--context "..."` | Give the model a hint, e.g. `-c "fixes #12"` |
+| `--provider <name>` | `anthropic` (default) or `copilot` |
+| `--model <id>` | Model to use (default: `claude-haiku-5-5` for `anthropic`, `auto` for `copilot`) |
+| `--plain` | Write a free-form message instead of Conventional Commits |
+| `-h`, `--help` | Show help |
+
+Without paths, `cmt` commits what is staged. With paths, it commits the current content of those paths only, like `git commit --only -- <path>...`, and leaves the rest of the index alone. Put flags before paths.
+
+### Example 1: review and commit staged changes
+
+The default mode. `cmt` shows the message and waits for your choice.
+
+```sh
+cmt
+```
+
+Output (the message text is illustrative; it depends on your diff and the model):
+
+```text
 feat(git): add staged diff reader
 
 Read the staged diff and file summary via the git binary so hooks
@@ -58,107 +73,90 @@ and signing configuration are respected.
 [y] commit  [e] edit  [r] regenerate  [n] cancel:
 ```
 
-Type the letter and press Enter.
-
-| Key | Action |
-|-----|--------|
+| Answer | Action |
+|--------|--------|
 | `y` | Commit with the generated message |
-| `e` | Open the message in your git editor, then commit (saving an empty message cancels) |
-| `r` | Ask the model for a new message |
-| `n` | Cancel without committing |
+| `e` | Open the message in your git editor, then commit (an empty message cancels) |
+| `r` | Read the changes again and generate a new message |
+| `n` | Cancel without committing; prints `Canceled.` |
 
-Before committing with `y` or `e`, `cmt` checks that the changes still match what the model saw. If the index or files changed in the meantime (for example, you staged more from another terminal), it reads the changes again, generates a new message, and asks again. `r` also re-reads the current changes.
+Before committing with `y` or `e`, `cmt` checks that the changes still match what the model saw. If they changed in the meantime, it prints `Changes were modified after the message was generated; regenerating.` and asks again.
 
-## Commands and flags
+The menu requires a terminal. In scripts, CI, or editor commands, use `--yes` or `--dry-run`.
 
-```text
-cmt [flags] [--] [path...]
-```
+### Example 2: preview a message without committing
 
-Without paths, `cmt` commits what is staged. With paths, it commits the current content of those paths only, like `git commit -- <path>...`, and leaves the rest of the index alone. Put flags before paths: everything after the first path is treated as a path. Without paths, changes outside the current directory are included too, even when `diff.relative` is enabled.
-
-The menu needs a terminal. When stdin is not a terminal (scripts, CI, editor commands), use `--yes` or `--dry-run`.
-
-| Flag | Description |
-|------|-------------|
-| `-a`, `--all` | Include unstaged changes to tracked files (like `git commit -a`); cannot be combined with paths |
-| `-y`, `--yes` | Commit without asking for confirmation; fails without committing if the changes were modified while the message was generated |
-| `--dry-run` | Print the generated message to stdout without committing |
-| `-c`, `--context "..."` | Give the model a hint, e.g. `-c "fixes #12"` |
-| `--provider <name>` | Model provider: `anthropic` (default) or `copilot` |
-| `--model <id>` | Model to use (default: `claude-haiku-5-5` for `anthropic`, `auto` for `copilot`) |
-| `--plain` | Write a free-form message instead of Conventional Commits |
-| `-h`, `--help` | Show help |
-
-### Examples
+Useful for checking the result first, or for inserting the message from an editor. Only the message goes to stdout; warnings and errors go to stderr.
 
 ```sh
-# Stage everything and review the message
-cmt -a
+cmt --dry-run -c "closes #42"
+```
 
-# Only see what would be generated
-cmt --dry-run
+Output (from the test `TestDryRunWritesOnlyMessageToStdout`, which uses a fake provider):
 
-# Add context the diff doesn't show
-cmt -c "closes #42, requested by support"
+```text
+feat(a): extend files
 
-# Commit without the prompt (e.g. in scripts)
-cmt -a -y
+Add lines.
+```
 
-# Commit only some files, leaving the rest staged
-cmt -- README.md cli/
+In the commit message buffer opened by `git commit`, Neovim users can run `:0r !cmt --dry-run` and Helix users `:insert-output cmt --dry-run`.
 
-# Use a more capable model
-cmt --model claude-opus-5-5
+### Example 3: commit only some files, without the prompt
 
-# Use GitHub Copilot with a specific model
+Commits the current content of `README.md` and `cli/` and leaves anything else staged as it is.
+
+```sh
+cmt -y -- README.md cli/
+```
+
+Output: the summary printed by `git commit`, for example (illustrative):
+
+```text
+[main 1a2b3c4] docs(readme): describe dry-run output
+ 1 file changed, 4 insertions(+)
+```
+
+With `--yes`, if the changes are modified while the message is generated, `cmt` commits nothing and exits with:
+
+```text
+error: changes were modified while the message was being generated; run cmt again
+```
+
+With nothing to commit, it exits with:
+
+```text
+error: nothing to commit; stage changes with git add, use --all, or pass paths
+```
+
+Exit codes: `0` on success, `1` on errors, `2` on invalid flags or arguments.
+
+## Configuration
+
+### Providers
+
+**Anthropic** (default) uses the official Anthropic Go SDK, which reads credentials from the environment, for example `ANTHROPIC_API_KEY`.
+
+**GitHub Copilot** runs the Copilot CLI in the background through the [GitHub Copilot SDK](https://github.com/github/copilot-sdk). Install the CLI, sign in once with `copilot`, and make sure `copilot` is in your `PATH` (or set `COPILOT_CLI_PATH`). Requests count against your Copilot plan.
+
+```sh
 cmt --provider copilot --model gpt-5-mini
 ```
 
-## Environment variables
+### Environment variables
 
-| Variable | Description |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | Anthropic API key (optional if you used `ant auth login`) |
-| `CMT_PROVIDER` | Default provider; the `--provider` flag overrides it |
-| `CMT_MODEL` | Default model; the `--model` flag overrides it |
-| `COPILOT_CLI_PATH` | Path to the Copilot CLI when it is not in `PATH` |
-| `CMT_MAX_DIFF_BYTES` | Diff size limit sent to the model (default: `200000`) |
-| `EDITOR` | Editor opened by the `e` action, unless `GIT_EDITOR`, `core.editor`, or `VISUAL` is set (same order as git) |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ANTHROPIC_API_KEY` | — | Anthropic API key, required for the `anthropic` provider unless the SDK finds other credentials |
+| `CMT_PROVIDER` | `anthropic` | Default provider; `--provider` overrides it |
+| `CMT_MODEL` | provider default | Default model; `--model` overrides it |
+| `CMT_MAX_DIFF_BYTES` | `200000` | Maximum diff size sent to the model; must be a positive integer |
+| `COPILOT_CLI_PATH` | `copilot` from `PATH` | Path to the Copilot CLI |
+| `EDITOR` | — | Editor for the `e` action, used when `GIT_EDITOR`, `core.editor`, and `VISUAL` are not set (same order as git) |
 
-## Large diffs
+### What is sent to the model
 
-Lockfiles (`go.sum`, `package-lock.json`, ...), minified and protobuf-generated files, and files marked `linguist-generated` in `.gitattributes` are left out of the diff sent to the model; binary files are sent only as a one-line note, even when a `textconv` driver is configured. They still appear in the file summary. If the diff is still bigger than `CMT_MAX_DIFF_BYTES`, `cmt` warns you on stderr and sends the file summary plus a partial diff cut at file boundaries instead of quietly cutting it.
-
-## Editor integration
-
-With `--dry-run`, stdout contains only the message; warnings and errors go to stderr. That makes `cmt` easy to call from an editor. `cmt` reads changes from git, so save the buffer first.
-
-Fill the commit message buffer opened by `git commit`:
-
-| Editor | Command |
-|--------|---------|
-| Neovim | `:0r !cmt --dry-run` |
-| Helix | `:insert-output cmt --dry-run` |
-
-Commit the current file directly:
-
-| Editor | Command |
-|--------|---------|
-| Neovim | `:w \| !cmt -y -- %:p` |
-| Helix | `:write` then `:sh cmt -y -- %{buffer_name}` |
-
-## Development
-
-Requires [Task](https://taskfile.dev) and [golangci-lint](https://golangci-lint.run).
-
-```sh
-task run -- --help   # run the CLI with arguments
-task test            # run all tests
-task format          # format Go code
-task lint            # run golangci-lint and check go.mod/go.sum are tidy
-task check           # format, then lint
-```
+Lockfiles (`go.sum`, `package-lock.json`, `yarn.lock`, `Cargo.lock`, and similar), `*.pb.go`, `*.min.js`, `*.min.css`, and files marked `linguist-generated` in `.gitattributes` are left out of the diff but still listed in the file summary. Binary files are not sent as content. If the diff is larger than `CMT_MAX_DIFF_BYTES`, `cmt` prints a warning on stderr and sends a partial diff cut at file boundaries.
 
 ## License
 
