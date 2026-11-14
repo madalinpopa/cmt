@@ -136,7 +136,7 @@ vhs docs/demo.tape
 
 ## Releases
 
-Every push and pull request runs lint, tests with the race detector, and a GoReleaser snapshot build. Pushing a `vX.Y.Z` tag from `main` publishes a GitHub release and updates the Homebrew cask.
+Every push to `main` and every pull request runs lint, tests with the race detector, and a GoReleaser snapshot build. Pushing a `vX.Y.Z` tag on a `main` commit whose CI passed publishes a GitHub release and updates the Homebrew cask, without rerunning those checks.
 
 ```sh
 task release:patch   # or release:minor, release:major
