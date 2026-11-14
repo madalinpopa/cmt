@@ -3,6 +3,8 @@ package git
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"os"
@@ -58,11 +60,20 @@ func (r Repo) Diff(ctx context.Context, c Changes, excludeGlobs ...string) (stri
 	for _, glob := range excludeGlobs {
 		pathspecs = append(pathspecs, ":(top,exclude,glob)"+glob)
 	}
-	return r.diff(ctx, c, []string{"--no-color", "--no-ext-diff"}, pathspecs)
+	return r.diff(ctx, c, []string{"--no-ext-diff"}, pathspecs)
 }
 
 func (r Repo) Stat(ctx context.Context, c Changes) (string, error) {
-	return r.diff(ctx, c, []string{"--no-color", "--stat"}, c.pathspecs())
+	return r.diff(ctx, c, []string{"--stat"}, c.pathspecs())
+}
+
+func (r Repo) Snapshot(ctx context.Context, c Changes) (string, error) {
+	out, err := r.diff(ctx, c, []string{"--no-ext-diff", "--binary", "--full-index"}, c.pathspecs())
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256([]byte(out))
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func (r Repo) Commit(ctx context.Context, message string, c Changes) (string, error) {
@@ -117,6 +128,7 @@ func (r Repo) diff(ctx context.Context, c Changes, flags, pathspecs []string) (s
 		args = []string{"diff", base}
 	}
 
+	args = append(args, "--no-color", "--no-relative", "--no-textconv")
 	args = append(args, flags...)
 	args = append(args, "--")
 	args = append(args, pathspecs...)

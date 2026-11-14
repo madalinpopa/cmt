@@ -181,6 +181,81 @@ func TestDiffExcludes(t *testing.T) {
 	}
 }
 
+func TestDiffIgnoresRelativeConfig(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t)
+	if err := os.Mkdir(filepath.Join(r.Dir, "sub"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	commitFile(t, r, "sub/keep.txt", "keep\n", "feat: add sub")
+	gitCmd(t, r.Dir, "config", "diff.relative", "true")
+	writeFile(t, r.Dir, "root.txt", "root\n")
+	gitCmd(t, r.Dir, "add", "root.txt")
+
+	sub := Repo{Dir: filepath.Join(r.Dir, "sub")}
+	stat, err := sub.Stat(t.Context(), Changes{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stat, "root.txt") {
+		t.Errorf("Stat from subdirectory = %q; want root.txt", stat)
+	}
+	diff, err := sub.Diff(t.Context(), Changes{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(diff, "+++ b/root.txt") {
+		t.Errorf("Diff from subdirectory = %q; want root.txt", diff)
+	}
+}
+
+func TestDiffIgnoresTextconv(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t)
+	gitCmd(t, r.Dir, "config", "diff.conv.textconv", "echo CONVERTED")
+	writeFile(t, r.Dir, ".gitattributes", "*.bin diff=conv\n")
+	writeFile(t, r.Dir, "data.bin", "\x00\x01\x02")
+	gitCmd(t, r.Dir, "add", "-A")
+
+	diff, err := r.Diff(t.Context(), Changes{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(diff, "CONVERTED") || !strings.Contains(diff, "Binary files") {
+		t.Errorf("Diff = %q; want binary note without textconv output", diff)
+	}
+}
+
+func TestSnapshot(t *testing.T) {
+	t.Parallel()
+	r := setupMixedChanges(t)
+	ctx := t.Context()
+
+	for _, c := range []Changes{{}, {All: true}} {
+		before, err := r.Snapshot(ctx, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, err := r.Snapshot(ctx, c)
+		if err != nil || again != before {
+			t.Fatalf("Snapshot(%v) is not stable: %q, %q, %v", c, before, again, err)
+		}
+	}
+
+	staged, err := r.Snapshot(ctx, Changes{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, r.Dir, "a.txt", "one\nstaged\nunstaged\nmore\n")
+	if after, err := r.Snapshot(ctx, Changes{}); err != nil || after != staged {
+		t.Errorf("staged Snapshot changed after a worktree edit: %v", err)
+	}
+	gitCmd(t, r.Dir, "add", "a.txt")
+	if after, err := r.Snapshot(ctx, Changes{}); err != nil || after == staged {
+		t.Errorf("staged Snapshot did not change after staging: %v", err)
+	}
+}
+
 func TestDiffTrackedWithoutCommits(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t)
