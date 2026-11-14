@@ -60,7 +60,7 @@ func TestConfirmRegenerateThenCancel(t *testing.T) {
 	}
 
 	first := commit.Message{Type: "feat", Subject: "first try"}
-	if err := confirmAndCommit(t.Context(), cmd, git.Repo{}, git.Staged, first, regenerate); err != nil {
+	if err := confirmAndCommit(t.Context(), cmd, git.Repo{}, git.Changes{}, first, regenerate); err != nil {
 		t.Fatalf("confirmAndCommit: %v", err)
 	}
 	if calls != 1 {
@@ -82,7 +82,7 @@ func TestConfirmRegenerateError(t *testing.T) {
 	want := errors.New("boom")
 	regenerate := func() (commit.Message, error) { return commit.Message{}, want }
 
-	err := confirmAndCommit(t.Context(), cmd, git.Repo{}, git.Staged, commit.Message{Subject: "x"}, regenerate)
+	err := confirmAndCommit(t.Context(), cmd, git.Repo{}, git.Changes{}, commit.Message{Subject: "x"}, regenerate)
 	if !errors.Is(err, want) {
 		t.Errorf("confirmAndCommit error = %v, want %v", err, want)
 	}
@@ -116,5 +116,13 @@ func TestRunRootRequiresTerminal(t *testing.T) {
 	err := runRoot(t.Context(), cmd, rootOptions{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "not a terminal") {
 		t.Errorf("runRoot error = %v", err)
+	}
+}
+
+func TestRunRootRejectsAllWithPaths(t *testing.T) {
+	t.Parallel()
+	err := runRoot(t.Context(), &command.Command{}, rootOptions{all: true, dryRun: true}, []string{"a.txt"})
+	if _, ok := errors.AsType[*command.UsageError](err); !ok {
+		t.Errorf("runRoot error = %v; want *command.UsageError", err)
 	}
 }
