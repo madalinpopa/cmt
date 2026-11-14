@@ -5,6 +5,7 @@ go 1.27.4
 require (
 	github.com/anthropics/anthropic-sdk-go/v2 v2.9.0
 	github.com/github/copilot-sdk/go v1.0.34
+	github.com/openai/openai-go/v3 v3.99.0
 	golang.org/x/term v0.48.0
 )
 
