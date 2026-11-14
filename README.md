@@ -30,7 +30,7 @@ brew install --cask madalinpopa/tap/cmt
 Go 1.27.4 or newer:
 
 ```sh
-go install github.com/madalinpopa/cmt@latest
+go install github.com/madalinpopa/cmt/cmd/cmt@latest
 ```
 
 Prebuilt archives for Linux and macOS (amd64, arm64) are attached to each [release](https://github.com/madalinpopa/cmt/releases).
@@ -121,11 +121,12 @@ Requires Go 1.27.4+, [Task](https://taskfile.dev), and [golangci-lint](https://g
 
 | Package | Responsibility |
 |---------|----------------|
-| [`cli`](cli) | Root command, input collection, diff filtering, confirmation |
-| [`command`](command) | Command and flag parsing on top of the standard `flag` package |
-| [`commit`](commit) | Prompt construction, message validation and formatting |
-| [`provider`](provider) | Anthropic and Copilot providers |
-| [`vcs`](vcs) | Git operations through the `git` binary |
+| [`cmd/cmt`](cmd/cmt) | Entry point; signal handling and exit codes |
+| [`internal/cli`](internal/cli) | Root command, input collection, diff filtering, confirmation |
+| [`internal/command`](internal/command) | Command and flag parsing on top of the standard `flag` package |
+| [`internal/commit`](internal/commit) | Prompt construction, message validation and formatting |
+| [`internal/provider`](internal/provider) | Anthropic and Copilot providers |
+| [`internal/vcs`](internal/vcs) | Git operations through the `git` binary |
 
 The demo is recorded with [VHS](https://github.com/charmbracelet/vhs) and calls the configured provider:
 
