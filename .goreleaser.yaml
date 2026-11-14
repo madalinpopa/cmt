@@ -1,0 +1,44 @@
+version: 2
+
+project_name: cmt
+
+builds:
+  - main: .
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: [-s -w]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+
+checksum:
+  algorithm: sha256
+
+changelog:
+  use: github-native
+
+release:
+  prerelease: auto
+
+homebrew_casks:
+  - name: cmt
+    binaries: [cmt]
+    homepage: https://github.com/madalinpopa/cmt
+    description: Generate git commit messages with Claude or GitHub Copilot
+    license: MIT
+    skip_upload: auto
+    repository:
+      owner: madalinpopa
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_msg_template: "cmt {{ .Tag }}"
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/cmt"]
+        end
+      end
