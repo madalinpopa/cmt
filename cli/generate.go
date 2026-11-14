@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -21,8 +22,9 @@ func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args [
 	if len(args) > 0 {
 		return &command.UsageError{Message: "unexpected arguments: " + strings.Join(args, " ")}
 	}
-	if !opts.dryRun && !opts.yes {
-		return errors.New("interactive confirmation is not implemented yet; use --yes or --dry-run")
+	interactive := !opts.dryRun && !opts.yes
+	if interactive && !isTerminal(cmd.In()) {
+		return errors.New("stdin is not a terminal; use --yes to commit or --dry-run to only print the message")
 	}
 
 	maxDiffBytes, err := parseMaxDiffBytes(os.Getenv("CMT_MAX_DIFF_BYTES"))
@@ -46,17 +48,57 @@ func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args [
 		}
 	}
 
-	msg, err := commit.Generate(ctx, anthropic.New(opts.model), in)
+	provider := anthropic.New(opts.model)
+	generate := func() (commit.Message, error) {
+		return commit.Generate(ctx, provider, in)
+	}
+
+	msg, err := generate()
 	if err != nil {
 		return err
 	}
 
-	if opts.dryRun {
+	switch {
+	case opts.dryRun:
 		_, err = fmt.Fprintln(cmd.Out(), msg)
 		return err
+	case opts.yes:
+		return commitMessage(ctx, cmd, repo, msg.String(), changes)
+	default:
+		return confirmAndCommit(ctx, cmd, repo, changes, msg, generate)
 	}
+}
 
-	out, err := repo.Commit(ctx, msg.String(), changes)
+func confirmAndCommit(ctx context.Context, cmd *command.Command, repo git.Repo, changes git.Changes, msg commit.Message, regenerate func() (commit.Message, error)) error {
+	answers := bufio.NewReader(cmd.In())
+	for {
+		if _, err := fmt.Fprintf(cmd.Out(), "%s\n\n", msg); err != nil {
+			return err
+		}
+
+		c, err := askChoice(answers, cmd.Out())
+		if err != nil {
+			return err
+		}
+
+		switch c {
+		case choiceCommit:
+			return commitMessage(ctx, cmd, repo, msg.String(), changes)
+		case choiceEdit:
+			return repo.CommitEdited(ctx, msg.String(), changes, cmd.In(), cmd.Out(), cmd.Err())
+		case choiceCancel:
+			_, err := fmt.Fprintln(cmd.Out(), "Canceled.")
+			return err
+		case choiceRegenerate:
+			if msg, err = regenerate(); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func commitMessage(ctx context.Context, cmd *command.Command, repo git.Repo, message string, changes git.Changes) error {
+	out, err := repo.Commit(ctx, message, changes)
 	if err != nil {
 		return err
 	}
