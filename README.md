@@ -129,6 +129,12 @@ How it behaves:
 - If `cmt` is not installed or fails, for example because the API key is missing, the commit continues with the usual empty message.
 - Repositories that set `core.hooksPath`, as Husky and lefthook do, ignore `.git/hooks`, so the hook does not run there.
 
+You can still write commit messages yourself:
+
+- `git commit -m "message"` or `git commit -F file` uses your message directly and skips generation entirely.
+- In a plain `git commit`, edit or delete the generated message before saving. Saving an empty message aborts the commit as usual.
+- `git -c core.hooksPath=/dev/null commit` opens an empty editor for a single commit by disabling all hooks for it. `--no-verify` does not help here, because it skips `pre-commit` and `commit-msg` but not `prepare-commit-msg`.
+
 ## Configuration
 
 | Variable | Default | Description |
