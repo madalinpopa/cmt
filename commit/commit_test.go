@@ -107,6 +107,14 @@ func TestBuildPrompt(t *testing.T) {
 	if strings.Contains(p.System, "Conventional Commits") {
 		t.Error("plain system prompt mentions Conventional Commits")
 	}
+	if strings.Contains(p.User, "<note>") {
+		t.Errorf("user prompt has a truncation note for a full diff:\n%s", p.User)
+	}
+
+	truncated := BuildPrompt(Input{Diff: "+line", DiffTruncated: true})
+	if !strings.Contains(truncated.User, "<note>\nThe diff was cut") {
+		t.Errorf("user prompt is missing the truncation note:\n%s", truncated.User)
+	}
 }
 
 func TestStyleSchema(t *testing.T) {

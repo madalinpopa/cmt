@@ -21,6 +21,8 @@ type Input struct {
 	Branch  string
 	Hint    string
 	Style   Style
+
+	DiffTruncated bool
 }
 
 type Message struct {
