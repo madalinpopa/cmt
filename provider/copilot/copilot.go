@@ -6,8 +6,10 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
+	"slices"
 
 	sdk "github.com/github/copilot-sdk/go"
 
@@ -44,11 +46,29 @@ func cliPath() (string, error) {
 	return path, nil
 }
 
+func builtinMCPServers() []string {
+	return []string{"github-mcp-server", "githubiq"}
+}
+
+func (p *Provider) disabledMCPServers(ctx context.Context) []string {
+	names := builtinMCPServers()
+	config, err := p.client.RPC.MCP.Config().List(ctx)
+	if err != nil {
+		return names
+	}
+	return append(names, slices.Sorted(maps.Keys(config.Servers))...)
+}
+
 func (p *Provider) Generate(ctx context.Context, pr commit.Prompt) (msg commit.Message, err error) {
+	if err := p.client.Start(ctx); err != nil {
+		return commit.Message{}, fmt.Errorf("copilot: start runtime: %w", err)
+	}
+
 	session, err := p.client.CreateSession(ctx, &sdk.SessionConfig{
 		ClientName:             "cmt",
 		Model:                  p.model,
 		AvailableTools:         []string{},
+		DisabledMCPServers:     p.disabledMCPServers(ctx),
 		EnableConfigDiscovery:  new(false),
 		SkipCustomInstructions: new(true),
 		SystemMessage:          &sdk.SystemMessageConfig{Mode: "replace", Content: pr.System},

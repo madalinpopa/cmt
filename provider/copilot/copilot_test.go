@@ -100,6 +100,16 @@ func runFakeRuntime(r io.Reader, w io.Writer, reply, logPath string) (err error)
 					"data":      map[string]any{"messageId": "response-1", "content": reply},
 				},
 			}
+		case "mcp.config.list":
+			if reply == replyError {
+				delete(resp, "result")
+				resp["error"] = map[string]any{"code": -32603, "message": "config unavailable"}
+				break
+			}
+			resp["result"] = map[string]any{"servers": map[string]any{
+				"playwright": map[string]any{"command": "npx"},
+				"context7":   map[string]any{"command": "npx"},
+			}}
 		case "session.options.update", "session.delete":
 			resp["result"] = map[string]any{"success": true}
 		}
@@ -168,6 +178,9 @@ func TestGenerate(t *testing.T) {
 	if tools, ok := create["availableTools"].([]any); !ok || len(tools) != 0 {
 		t.Errorf("availableTools = %v, want []", create["availableTools"])
 	}
+	if got, want := fmt.Sprint(create["disabledMcpServers"]), "[github-mcp-server githubiq context7 playwright]"; got != want {
+		t.Errorf("disabledMcpServers = %s, want %s", got, want)
+	}
 	system, _ := create["systemMessage"].(map[string]any)
 	if system["mode"] != "replace" || system["content"] != prompt.System {
 		t.Errorf("systemMessage = %v", system)
@@ -212,8 +225,12 @@ func TestGenerateErrors(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("Generate error = %v, want %q", err, tt.wantErr)
 			}
-			if _, ok := readRequests(t, logPath)["session.delete"]; !ok {
+			requests := readRequests(t, logPath)
+			if _, ok := requests["session.delete"]; !ok {
 				t.Error("session.delete was not called")
+			}
+			if _, ok := requests["session.create"]["disabledMcpServers"]; !ok {
+				t.Error("session.create did not disable MCP servers")
 			}
 		})
 	}
