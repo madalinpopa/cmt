@@ -39,12 +39,20 @@ const (
 	Tracked
 )
 
-func (r Repo) Diff(ctx context.Context, c Changes) (string, error) {
-	return r.diff(ctx, c, "--no-color", "--no-ext-diff")
+func (r Repo) Diff(ctx context.Context, c Changes, excludeGlobs ...string) (string, error) {
+	pathspecs := []string{
+		":/",
+		":(top,exclude,attr:linguist-generated)",
+		":(top,exclude,attr:linguist-generated=true)",
+	}
+	for _, glob := range excludeGlobs {
+		pathspecs = append(pathspecs, ":(top,exclude,glob)"+glob)
+	}
+	return r.diff(ctx, c, []string{"--no-color", "--no-ext-diff"}, pathspecs)
 }
 
 func (r Repo) Stat(ctx context.Context, c Changes) (string, error) {
-	return r.diff(ctx, c, "--no-color", "--stat")
+	return r.diff(ctx, c, []string{"--no-color", "--stat"}, nil)
 }
 
 func (r Repo) Commit(ctx context.Context, message string, c Changes) (string, error) {
@@ -56,16 +64,22 @@ func (r Repo) Commit(ctx context.Context, message string, c Changes) (string, er
 	return strings.TrimSpace(out), err
 }
 
-func (r Repo) diff(ctx context.Context, c Changes, flags ...string) (string, error) {
-	if c == Staged {
-		return r.run(ctx, append([]string{"diff", "--cached"}, flags...)...)
+func (r Repo) diff(ctx context.Context, c Changes, flags, pathspecs []string) (string, error) {
+	args := []string{"diff", "--cached"}
+	if c == Tracked {
+		base, err := r.headOrEmptyTree(ctx)
+		if err != nil {
+			return "", err
+		}
+		args = []string{"diff", base}
 	}
 
-	base, err := r.headOrEmptyTree(ctx)
-	if err != nil {
-		return "", err
+	args = append(args, flags...)
+	if len(pathspecs) > 0 {
+		args = append(args, "--")
+		args = append(args, pathspecs...)
 	}
-	return r.run(ctx, append([]string{"diff", base}, flags...)...)
+	return r.run(ctx, args...)
 }
 
 func (r Repo) headOrEmptyTree(ctx context.Context) (string, error) {

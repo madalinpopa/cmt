@@ -137,6 +137,42 @@ func TestDiffTracked(t *testing.T) {
 	}
 }
 
+func TestDiffExcludes(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t)
+	if err := os.Mkdir(filepath.Join(r.Dir, "sub"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, r.Dir, ".gitattributes", "gen.go linguist-generated\ngen2.go linguist-generated=true\n")
+	for _, name := range []string{"go.sum", "sub/go.sum", "gen.go", "gen2.go", "sub/keep.txt"} {
+		writeFile(t, r.Dir, name, name+"\n")
+	}
+	gitCmd(t, r.Dir, "add", "-A")
+
+	for _, dir := range []string{r.Dir, filepath.Join(r.Dir, "sub")} {
+		diff, err := Repo{Dir: dir}.Diff(t.Context(), Staged, "**/go.sum")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(diff, "+++ b/sub/keep.txt") || !strings.Contains(diff, "+++ b/.gitattributes") {
+			t.Errorf("Diff from %s is missing kept files:\n%s", dir, diff)
+		}
+		for _, excluded := range []string{"go.sum", "sub/go.sum", "gen.go", "gen2.go"} {
+			if strings.Contains(diff, "+++ b/"+excluded) {
+				t.Errorf("Diff from %s contains %s:\n%s", dir, excluded, diff)
+			}
+		}
+	}
+
+	stat, err := r.Stat(t.Context(), Staged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stat, "go.sum") || !strings.Contains(stat, "gen.go") {
+		t.Errorf("Stat should list excluded files:\n%s", stat)
+	}
+}
+
 func TestDiffTrackedWithoutCommits(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t)
