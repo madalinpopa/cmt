@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -56,12 +57,41 @@ func (r Repo) Stat(ctx context.Context, c Changes) (string, error) {
 }
 
 func (r Repo) Commit(ctx context.Context, message string, c Changes) (string, error) {
-	args := []string{"commit", "--file=-"}
+	out, err := r.runInput(ctx, strings.NewReader(message), commitArgs(c, "--file=-")...)
+	return strings.TrimSpace(out), err
+}
+
+func (r Repo) CommitEdited(ctx context.Context, message string, c Changes, stdin io.Reader, stdout, stderr io.Writer) (err error) {
+	f, err := os.CreateTemp("", "cmt-*.txt")
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, os.Remove(f.Name())) }()
+
+	if _, err := f.WriteString(message); err != nil {
+		return errors.Join(err, f.Close())
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+
+	args := commitArgs(c, "--file="+f.Name(), "--edit")
+	cmd := r.command(ctx, args)
+	cmd.Stdin = stdin
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	if err := cmd.Run(); err != nil {
+		return &Error{Args: args, Err: err}
+	}
+	return nil
+}
+
+func commitArgs(c Changes, flags ...string) []string {
+	args := append([]string{"commit"}, flags...)
 	if c == Tracked {
 		args = append(args, "--all")
 	}
-	out, err := r.runInput(ctx, strings.NewReader(message), args...)
-	return strings.TrimSpace(out), err
+	return args
 }
 
 func (r Repo) diff(ctx context.Context, c Changes, flags, pathspecs []string) (string, error) {
@@ -136,8 +166,7 @@ func (r Repo) run(ctx context.Context, args ...string) (string, error) {
 
 func (r Repo) runInput(ctx context.Context, stdin io.Reader, args ...string) (string, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec
-	cmd.Dir = r.Dir
+	cmd := r.command(ctx, args)
 	cmd.Stdin = stdin
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -146,4 +175,10 @@ func (r Repo) runInput(ctx context.Context, stdin io.Reader, args ...string) (st
 		return "", &Error{Args: args, Stderr: strings.TrimSpace(stderr.String()), Err: err}
 	}
 	return stdout.String(), nil
+}
+
+func (r Repo) command(ctx context.Context, args []string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec
+	cmd.Dir = r.Dir
+	return cmd
 }

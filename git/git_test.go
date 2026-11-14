@@ -1,8 +1,10 @@
 package git
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +21,12 @@ func TestMain(m *testing.M) {
 	}
 	for key, value := range env {
 		if err := os.Setenv(key, value); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+	for _, key := range []string{"GIT_EDITOR", "VISUAL", "EDITOR"} {
+		if err := os.Unsetenv(key); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -237,6 +245,43 @@ func TestCommit(t *testing.T) {
 				t.Errorf("committed diff = %q", diff)
 			}
 		})
+	}
+}
+
+func TestCommitEdited(t *testing.T) {
+	t.Parallel()
+	r := setupMixedChanges(t)
+	gitCmd(t, r.Dir, "config", "core.editor", "sed -i.bak -e s/extend/edit/")
+
+	var stdout bytes.Buffer
+	err := r.CommitEdited(t.Context(), "feat(a): extend a\n\nAdd more lines to a.\n", Tracked, nil, &stdout, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "feat(a): edit a") {
+		t.Errorf("stdout = %q", stdout.String())
+	}
+
+	gotMsg, diff := lastCommit(t, r)
+	if want := "feat(a): edit a\n\nAdd more lines to a."; gotMsg != want {
+		t.Errorf("commit message = %q, want %q", gotMsg, want)
+	}
+	if !strings.Contains(diff, "+unstaged") {
+		t.Errorf("committed diff = %q; want tracked changes", diff)
+	}
+}
+
+func TestCommitEditedEmptyMessage(t *testing.T) {
+	t.Parallel()
+	r := setupMixedChanges(t)
+	gitCmd(t, r.Dir, "config", "core.editor", "cp /dev/null")
+
+	err := r.CommitEdited(t.Context(), "feat(a): extend a", Staged, nil, io.Discard, io.Discard)
+	if _, ok := errors.AsType[*Error](err); !ok {
+		t.Fatalf("CommitEdited error = %v; want *Error", err)
+	}
+	if commits, err := r.RecentCommits(t.Context(), 5); err != nil || len(commits) != 1 {
+		t.Errorf("RecentCommits = %q, %v; want only the initial commit", commits, err)
 	}
 }
 
