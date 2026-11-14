@@ -17,3 +17,21 @@ tasks:
     desc: Run all tests
     cmds:
       - go test ./... {{.CLI_ARGS}}
+
+  lint:
+    desc: Run golangci-lint and verify go.mod and go.sum are tidy
+    cmds:
+      - golangci-lint run ./...
+      - go mod tidy -diff
+
+  format:
+    desc: Format Go code
+    cmds:
+      - go fmt ./...
+      - golangci-lint fmt ./...
+
+  check:
+    desc: Format code and run linters
+    cmds:
+      - task: format
+      - task: lint
