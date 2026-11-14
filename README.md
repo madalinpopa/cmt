@@ -158,6 +158,42 @@ cmt --provider copilot --model gpt-5-mini
 
 Lockfiles (`go.sum`, `package-lock.json`, `yarn.lock`, `Cargo.lock`, and similar), `*.pb.go`, `*.min.js`, `*.min.css`, and files marked `linguist-generated` in `.gitattributes` are left out of the diff but still listed in the file summary. Binary files are not sent as content. If the diff is larger than `CMT_MAX_DIFF_BYTES`, `cmt` prints a warning on stderr and sends a partial diff cut at file boundaries.
 
+## Troubleshooting
+
+| Error | Fix |
+|-------|-----|
+| `stdin is not a terminal; use --yes to commit or --dry-run to only print the message` | The confirmation menu needs a terminal. Pass `--yes` or `--dry-run` in scripts and editors. |
+| `nothing to commit; stage changes with git add, use --all, or pass paths` | Stage changes first, or use `-a` or paths. |
+| `--all cannot be combined with paths` | Use either `-a` or paths, not both. |
+| `copilot: GitHub Copilot CLI not found in PATH; install it or set COPILOT_CLI_PATH` | Install the Copilot CLI or set `COPILOT_CLI_PATH` to its location. |
+| `anthropic: ...` authentication errors | Check that `ANTHROPIC_API_KEY` is set in the shell that runs `cmt`. |
+| `warning: diff is larger than ... bytes (CMT_MAX_DIFF_BYTES); sending a partial diff` | The model saw only part of the diff. Commit in smaller pieces or raise `CMT_MAX_DIFF_BYTES`. |
+
+## Development
+
+Clone the repository and use the [Task](https://taskfile.dev) targets from `Taskfile.yml`, or the equivalent Go commands:
+
+| Task | Command | Runs |
+|------|---------|------|
+| `task run -- <args>` | `go run . <args>` | Run `cmt` from source |
+| `task test` | `go test ./...` | Run all tests |
+| `task lint` | `golangci-lint run ./...` and `go mod tidy -diff` | Lint and check that `go.mod`/`go.sum` are tidy |
+| `task format` | `go fmt ./...` and `golangci-lint fmt ./...` | Format code |
+| `task check` | — | `format` followed by `lint` |
+
+Linting requires [golangci-lint](https://golangci-lint.run); its configuration is in [`.golangci.yml`](.golangci.yml).
+
+### Project layout
+
+| Package | Responsibility |
+|---------|----------------|
+| [`main.go`](main.go) | Entry point; wires signal handling and exit codes |
+| [`cli/`](cli) | Root command, flags, input collection, diff filtering and truncation, confirmation menu |
+| [`command/`](command) | Minimal command and flag-parsing framework on top of the standard `flag` package |
+| [`commit/`](commit) | Prompt construction, message validation, and formatting |
+| [`provider/anthropic/`](provider/anthropic), [`provider/copilot/`](provider/copilot) | Model providers |
+| [`vcs/`](vcs) | Git operations (diff, stat, snapshot, commit) run through the `git` binary |
+
 ## License
 
 [MIT](LICENSE)
