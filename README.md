@@ -94,6 +94,41 @@ The confirmation menu needs a terminal. In scripts, CI, and editors use `--yes` 
 
 Exit codes: `0` success, `1` error, `2` invalid flags or arguments.
 
+## How I use it
+
+I let `cmt` prefill the commit message whenever I run a plain `git commit`, through a global `prepare-commit-msg` hook. Git opens my editor with the generated message already in place, so I can review it, tweak it, or replace it before saving.
+
+Create the hook in a git template directory:
+
+```sh
+mkdir -p ~/.config/git/template/hooks
+cat > ~/.config/git/template/hooks/prepare-commit-msg <<'EOF'
+#!/bin/sh
+
+[ -z "$2" ] || exit 0
+command -v cmt >/dev/null 2>&1 || exit 0
+
+tmp="$1.cmt"
+if command cmt --dry-run >"$tmp" && [ -s "$tmp" ]; then
+  cat "$1" >>"$tmp" && mv "$tmp" "$1"
+fi
+rm -f "$tmp"
+exit 0
+EOF
+chmod +x ~/.config/git/template/hooks/prepare-commit-msg
+git config --global init.templateDir ~/.config/git/template
+```
+
+New clones and `git init` repositories get the hook automatically. To add it to an existing repository, run `git init` inside it; this is safe and does not overwrite hooks that already exist.
+
+How it behaves:
+
+- It only runs for a plain `git commit`. Commits made with `-m` or `-F`, merges, squashes, amends, and commits made by `cmt` itself keep their message untouched.
+- If `commit.template` is set, git treats every plain `git commit` as using a template, so the hook never runs. Unset it with `git config --global --unset commit.template` to use the hook.
+- It works with `git commit -a` and `git commit -- <path>`, because `cmt --dry-run` reads the index that git is about to commit.
+- If `cmt` is not installed or fails, for example because the API key is missing, the commit continues with the usual empty message.
+- Repositories that set `core.hooksPath`, as Husky and lefthook do, ignore `.git/hooks`, so the hook does not run there.
+
 ## Configuration
 
 | Variable | Default | Description |
