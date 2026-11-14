@@ -33,6 +33,7 @@ tasks:
   check:
     desc: Format code and run linters
     cmds:
+      - task: test
       - task: format
       - task: lint
 
