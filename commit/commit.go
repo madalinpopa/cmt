@@ -73,7 +73,7 @@ func (m Message) normalize() Message {
 	m.Type = strings.TrimSpace(m.Type)
 	m.Scope = strings.TrimSpace(m.Scope)
 	m.Subject = strings.TrimSpace(m.Subject)
-	m.Body = strings.TrimSpace(m.Body)
+	m.Body = wrapBody(strings.TrimSpace(m.Body))
 	return m
 }
 
