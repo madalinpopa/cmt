@@ -14,17 +14,23 @@ import (
 
 const recentCommitCount = 10
 
-var errNothingStaged = errors.New("no staged changes; stage files with git add first")
+var errNothingToCommit = errors.New("nothing to commit; stage changes with git add or use --all")
 
 func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args []string) error {
 	if len(args) > 0 {
 		return &command.UsageError{Message: "unexpected arguments: " + strings.Join(args, " ")}
 	}
-	if opts.all || !opts.dryRun {
-		return errors.New("only --dry-run is implemented so far")
+	if !opts.dryRun && !opts.yes {
+		return errors.New("interactive confirmation is not implemented yet; use --yes or --dry-run")
 	}
 
-	in, err := collectInput(ctx, git.Repo{}, opts)
+	repo := git.Repo{}
+	changes := git.Staged
+	if opts.all {
+		changes = git.Tracked
+	}
+
+	in, err := collectInput(ctx, repo, changes, opts)
 	if err != nil {
 		return err
 	}
@@ -34,20 +40,29 @@ func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args [
 		return err
 	}
 
-	_, err = fmt.Fprintln(cmd.Out(), msg)
+	if opts.dryRun {
+		_, err = fmt.Fprintln(cmd.Out(), msg)
+		return err
+	}
+
+	out, err := repo.Commit(ctx, msg.String(), changes)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(cmd.Out(), out)
 	return err
 }
 
-func collectInput(ctx context.Context, repo git.Repo, opts rootOptions) (commit.Input, error) {
-	diff, err := repo.StagedDiff(ctx)
+func collectInput(ctx context.Context, repo git.Repo, changes git.Changes, opts rootOptions) (commit.Input, error) {
+	diff, err := repo.Diff(ctx, changes)
 	if err != nil {
 		return commit.Input{}, err
 	}
 	if strings.TrimSpace(diff) == "" {
-		return commit.Input{}, errNothingStaged
+		return commit.Input{}, errNothingToCommit
 	}
 
-	stat, err := repo.StagedStat(ctx)
+	stat, err := repo.Stat(ctx, changes)
 	if err != nil {
 		return commit.Input{}, err
 	}
