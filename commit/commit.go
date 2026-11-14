@@ -84,6 +84,9 @@ func (m Message) validate(style Style) error {
 	if strings.ContainsAny(m.Subject, "\r\n") {
 		return errors.New("generated subject spans multiple lines")
 	}
+	if strings.ContainsAny(m.Scope, "\r\n()") {
+		return errors.New("generated scope contains invalid characters")
+	}
 	if style == Conventional && !slices.Contains(commitTypes(), m.Type) {
 		return errors.New("generated message has an invalid type: " + m.Type)
 	}

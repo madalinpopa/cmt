@@ -65,6 +65,10 @@ func TestGenerateRejectsInvalidMessages(t *testing.T) {
 	}{
 		{"empty subject", Message{Type: "feat", Subject: "  "}, Conventional},
 		{"multiline subject", Message{Type: "feat", Subject: "a\nb"}, Conventional},
+		{"multiline scope", Message{Type: "fix", Scope: "cli\ninvalid", Subject: "add"}, Conventional},
+		{"scope carriage return", Message{Type: "fix", Scope: "cli\rinvalid", Subject: "add"}, Conventional},
+		{"scope opening parenthesis", Message{Type: "fix", Scope: "cli(invalid", Subject: "add"}, Conventional},
+		{"scope closing parenthesis", Message{Type: "fix", Scope: "cli)invalid", Subject: "add"}, Conventional},
 		{"unknown type", Message{Type: "feature", Subject: "add"}, Conventional},
 		{"plain empty subject", Message{}, Plain},
 	}
