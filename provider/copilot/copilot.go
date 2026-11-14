@@ -1,7 +1,6 @@
 package copilot
 
 import (
-	"cmp"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -10,13 +9,17 @@ import (
 	"os"
 	"os/exec"
 	"slices"
+	"time"
 
 	sdk "github.com/github/copilot-sdk/go"
 
 	"github.com/madalinpopa/cmt/commit"
 )
 
-const DefaultModel = "auto"
+const (
+	DefaultModel   = "auto"
+	cleanupTimeout = 5 * time.Second
+)
 
 type Provider struct {
 	client *sdk.Client
@@ -77,8 +80,10 @@ func (p *Provider) Generate(ctx context.Context, pr commit.Prompt) (msg commit.M
 		return commit.Message{}, fmt.Errorf("copilot: create session: %w", err)
 	}
 	defer func() {
-		if derr := p.client.DeleteSession(context.WithoutCancel(ctx), session.SessionID); derr != nil {
-			err = cmp.Or(err, fmt.Errorf("copilot: delete session: %w", derr))
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+		defer cancel()
+		if derr := p.client.DeleteSession(cleanupCtx, session.SessionID); derr != nil {
+			err = errors.Join(err, fmt.Errorf("copilot: delete session: %w", derr))
 		}
 	}()
 

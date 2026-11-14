@@ -2,6 +2,7 @@ package copilot
 
 import (
 	"bufio"
+	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	sdk "github.com/github/copilot-sdk/go"
 
@@ -20,9 +22,11 @@ import (
 )
 
 const (
-	envFakeReply = "CMT_FAKE_COPILOT_REPLY"
-	envFakeLog   = "CMT_FAKE_COPILOT_LOG"
-	replyError   = "!error"
+	envFakeReply      = "CMT_FAKE_COPILOT_REPLY"
+	envFakeLog        = "CMT_FAKE_COPILOT_LOG"
+	envFakeSkipDelete = "CMT_FAKE_COPILOT_SKIP_DELETE"
+	replyError        = "!error"
+	replyWait         = "!wait"
 )
 
 func TestMain(m *testing.M) {
@@ -85,6 +89,9 @@ func runFakeRuntime(r io.Reader, w io.Writer, reply, logPath string) (err error)
 		case "session.create":
 			resp["result"] = map[string]any{"sessionId": req.Params["sessionId"]}
 		case "session.sendAndWait":
+			if reply == replyWait {
+				continue
+			}
 			if reply == replyError {
 				delete(resp, "result")
 				resp["error"] = map[string]any{"code": -32603, "message": "model unavailable"}
@@ -110,7 +117,12 @@ func runFakeRuntime(r io.Reader, w io.Writer, reply, logPath string) (err error)
 				"playwright": map[string]any{"command": "npx"},
 				"context7":   map[string]any{"command": "npx"},
 			}}
-		case "session.options.update", "session.delete":
+		case "session.delete":
+			if os.Getenv(envFakeSkipDelete) == "1" {
+				continue
+			}
+			resp["result"] = map[string]any{"success": true}
+		case "session.options.update", "session.detach":
 			resp["result"] = map[string]any{"success": true}
 		}
 
@@ -242,5 +254,50 @@ func TestNewWithoutCLI(t *testing.T) {
 
 	if _, err := New(DefaultModel); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Errorf("New error = %v", err)
+	}
+}
+
+func TestGenerateCleanupTimeout(t *testing.T) {
+	t.Setenv(envFakeSkipDelete, "1")
+	p, logPath := newFakeProvider(t, `{"type":"fix","scope":"","subject":"handle input","body":"","breaking":false}`)
+	t.Cleanup(func() {
+		if err := p.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
+
+	guardCtx, cancel := context.WithTimeout(t.Context(), 3*cleanupTimeout)
+	defer cancel()
+	stop := context.AfterFunc(guardCtx, p.client.ForceStop)
+	defer stop()
+
+	_, err := p.Generate(t.Context(), commit.Prompt{User: "diff"})
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "delete session") {
+		t.Fatalf("Generate error = %v; want cleanup deadline exceeded", err)
+	}
+	if _, ok := readRequests(t, logPath)["session.delete"]; !ok {
+		t.Error("session.delete was not called")
+	}
+}
+
+func TestGenerateCanceledStillDeletesSession(t *testing.T) {
+	p, logPath := newFakeProvider(t, replyWait)
+	t.Cleanup(func() {
+		if err := p.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	_, err := p.Generate(ctx, commit.Prompt{User: "diff"})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Generate error = %v; want deadline exceeded", err)
+	}
+	if strings.Contains(err.Error(), "delete session") {
+		t.Errorf("cleanup failed after cancellation: %v", err)
+	}
+	if _, ok := readRequests(t, logPath)["session.delete"]; !ok {
+		t.Error("session.delete was not called after cancellation")
 	}
 }
