@@ -30,12 +30,6 @@ func (c *Command) Name() string {
 	return name
 }
 
-// Execute parses args, validates required flags and calls Run with the
-// positional arguments. Flags may appear before or after positional
-// arguments; everything after a "--" terminator is treated as positional.
-//
-// -h/--help prints usage to Out and returns nil. Parse failures and missing
-// required flags are returned as *UsageError.
 func (c *Command) Execute(ctx context.Context, args []string) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -64,10 +58,6 @@ func (c *Command) Execute(ctx context.Context, args []string) error {
 	return c.Run(ctx, c, positional)
 }
 
-// parseInterspersed parses flags that may be mixed with positional arguments.
-// The standard flag package stops at the first non-flag argument, so parsing
-// resumes after each positional argument until args are exhausted or a "--"
-// terminator is consumed.
 func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 	var positional []string
 	rest := args
@@ -94,7 +84,6 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 	return positional, nil
 }
 
-// PrintUsage writes the command's help text to w.
 func (c *Command) PrintUsage(w io.Writer) {
 	var b strings.Builder
 
@@ -124,5 +113,5 @@ func (c *Command) PrintUsage(w io.Writer) {
 		b.WriteString("\n")
 	}
 
-	io.WriteString(w, b.String())
+	_, _ = io.WriteString(w, b.String())
 }
