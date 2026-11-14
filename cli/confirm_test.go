@@ -10,7 +10,7 @@ import (
 
 	"github.com/madalinpopa/cmt/command"
 	"github.com/madalinpopa/cmt/commit"
-	"github.com/madalinpopa/cmt/git"
+	"github.com/madalinpopa/cmt/vcs"
 )
 
 func TestAskChoice(t *testing.T) {
@@ -60,7 +60,7 @@ func TestConfirmRegenerateThenCancel(t *testing.T) {
 	}
 
 	first := draft{msg: commit.Message{Type: "feat", Subject: "first try"}}
-	if err := confirmAndCommit(t.Context(), cmd, git.Repo{}, git.Changes{}, first, regenerate); err != nil {
+	if err := confirmAndCommit(t.Context(), cmd, vcs.Repo{}, vcs.Changes{}, first, regenerate); err != nil {
 		t.Fatalf("confirmAndCommit: %v", err)
 	}
 	if calls != 1 {
@@ -82,7 +82,7 @@ func TestConfirmRegenerateError(t *testing.T) {
 	want := errors.New("boom")
 	regenerate := func() (draft, error) { return draft{}, want }
 
-	err := confirmAndCommit(t.Context(), cmd, git.Repo{}, git.Changes{}, draft{msg: commit.Message{Subject: "x"}}, regenerate)
+	err := confirmAndCommit(t.Context(), cmd, vcs.Repo{}, vcs.Changes{}, draft{msg: commit.Message{Subject: "x"}}, regenerate)
 	if !errors.Is(err, want) {
 		t.Errorf("confirmAndCommit error = %v, want %v", err, want)
 	}

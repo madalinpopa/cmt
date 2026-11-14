@@ -12,9 +12,9 @@ import (
 
 	"github.com/madalinpopa/cmt/command"
 	"github.com/madalinpopa/cmt/commit"
-	"github.com/madalinpopa/cmt/git"
 	"github.com/madalinpopa/cmt/provider/anthropic"
 	"github.com/madalinpopa/cmt/provider/copilot"
+	"github.com/madalinpopa/cmt/vcs"
 )
 
 const recentCommitCount = 10
@@ -25,7 +25,7 @@ var (
 )
 
 type runner struct {
-	repo        git.Repo
+	repo        vcs.Repo
 	newProvider func(name, model string) (commit.Provider, error)
 	getenv      func(key string) string
 }
@@ -71,7 +71,7 @@ func (r runner) run(ctx context.Context, cmd *command.Command, opts rootOptions,
 	}
 
 	repo := r.repo
-	changes := git.Changes{All: opts.all, Paths: args}
+	changes := vcs.Changes{All: opts.all, Paths: args}
 
 	generate := func() (draft, error) {
 		snapshot, err := repo.Snapshot(ctx, changes)
@@ -114,12 +114,12 @@ type draft struct {
 	snapshot string
 }
 
-func (d draft) changed(ctx context.Context, repo git.Repo, changes git.Changes) (bool, error) {
+func (d draft) changed(ctx context.Context, repo vcs.Repo, changes vcs.Changes) (bool, error) {
 	current, err := repo.Snapshot(ctx, changes)
 	return current != d.snapshot, err
 }
 
-func confirmAndCommit(ctx context.Context, cmd *command.Command, repo git.Repo, changes git.Changes, d draft, regenerate func() (draft, error)) error {
+func confirmAndCommit(ctx context.Context, cmd *command.Command, repo vcs.Repo, changes vcs.Changes, d draft, regenerate func() (draft, error)) error {
 	answers := bufio.NewReader(cmd.In())
 	for {
 		if _, err := fmt.Fprintf(cmd.Out(), "%s\n\n", d.msg); err != nil {
@@ -150,7 +150,7 @@ func confirmAndCommit(ctx context.Context, cmd *command.Command, repo git.Repo, 
 	}
 }
 
-func regenerateIfChanged(ctx context.Context, cmd *command.Command, repo git.Repo, changes git.Changes, d draft, c choice) (choice, error) {
+func regenerateIfChanged(ctx context.Context, cmd *command.Command, repo vcs.Repo, changes vcs.Changes, d draft, c choice) (choice, error) {
 	if c != choiceCommit && c != choiceEdit {
 		return c, nil
 	}
@@ -162,7 +162,7 @@ func regenerateIfChanged(ctx context.Context, cmd *command.Command, repo git.Rep
 	return choiceRegenerate, err
 }
 
-func commitMessage(ctx context.Context, cmd *command.Command, repo git.Repo, message string, changes git.Changes) error {
+func commitMessage(ctx context.Context, cmd *command.Command, repo vcs.Repo, message string, changes vcs.Changes) error {
 	out, err := repo.Commit(ctx, message, changes)
 	if err != nil {
 		return err
@@ -171,7 +171,7 @@ func commitMessage(ctx context.Context, cmd *command.Command, repo git.Repo, mes
 	return err
 }
 
-func collectInput(ctx context.Context, warn io.Writer, repo git.Repo, changes git.Changes, maxDiffBytes int, opts rootOptions) (commit.Input, error) {
+func collectInput(ctx context.Context, warn io.Writer, repo vcs.Repo, changes vcs.Changes, maxDiffBytes int, opts rootOptions) (commit.Input, error) {
 	stat, err := repo.Stat(ctx, changes)
 	if err != nil {
 		return commit.Input{}, err

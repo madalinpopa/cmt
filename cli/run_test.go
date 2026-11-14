@@ -13,7 +13,7 @@ import (
 
 	"github.com/madalinpopa/cmt/command"
 	"github.com/madalinpopa/cmt/commit"
-	"github.com/madalinpopa/cmt/git"
+	"github.com/madalinpopa/cmt/vcs"
 )
 
 func TestMain(m *testing.M) {
@@ -74,7 +74,7 @@ func newTestRepo(t *testing.T) string {
 
 func newTestRunner(dir string, p *fakeProvider, env map[string]string) runner {
 	return runner{
-		repo:        git.Repo{Dir: dir},
+		repo:        vcs.Repo{Dir: dir},
 		newProvider: func(string, string) (commit.Provider, error) { return p, nil },
 		getenv:      func(key string) string { return env[key] },
 	}
@@ -185,8 +185,8 @@ func TestConfirmRegeneratesWhenChangesModified(t *testing.T) {
 	t.Parallel()
 	dir := newTestRepo(t)
 	writeFile(t, dir, "a.txt", "a\nfirst\n")
-	repo := git.Repo{Dir: dir}
-	changes := git.Changes{All: true}
+	repo := vcs.Repo{Dir: dir}
+	changes := vcs.Changes{All: true}
 
 	snapshot, err := repo.Snapshot(t.Context(), changes)
 	if err != nil {
