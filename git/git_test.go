@@ -73,36 +73,144 @@ func TestEmptyRepo(t *testing.T) {
 		t.Fatalf("RecentCommits = %q, %v; want nil", commits, err)
 	}
 
-	diff, err := r.StagedDiff(ctx)
-	if err != nil || diff != "" {
-		t.Fatalf("StagedDiff = %q, %v; want empty", diff, err)
+	for _, c := range []Changes{Staged, Tracked} {
+		diff, err := r.Diff(ctx, c)
+		if err != nil || diff != "" {
+			t.Fatalf("Diff(%v) = %q, %v; want empty", c, diff, err)
+		}
 	}
 }
 
-func TestStagedChangesOnly(t *testing.T) {
-	t.Parallel()
+func setupMixedChanges(t *testing.T) Repo {
+	t.Helper()
 	r := newRepo(t)
-	ctx := t.Context()
 	commitFile(t, r, "a.txt", "one\n", "feat: add a")
 
 	writeFile(t, r.Dir, "a.txt", "one\nstaged\n")
 	gitCmd(t, r.Dir, "add", "a.txt")
 	writeFile(t, r.Dir, "a.txt", "one\nstaged\nunstaged\n")
+	writeFile(t, r.Dir, "untracked.txt", "new\n")
+	return r
+}
 
-	diff, err := r.StagedDiff(ctx)
+func TestDiffStaged(t *testing.T) {
+	t.Parallel()
+	r := setupMixedChanges(t)
+	ctx := t.Context()
+
+	diff, err := r.Diff(ctx, Staged)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(diff, "+staged") || strings.Contains(diff, "unstaged") {
-		t.Errorf("StagedDiff = %q; want only staged changes", diff)
+		t.Errorf("Diff(Staged) = %q; want only staged changes", diff)
 	}
 
-	stat, err := r.StagedStat(ctx)
+	stat, err := r.Stat(ctx, Staged)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(stat, "a.txt") || !strings.Contains(stat, "1 insertion") {
-		t.Errorf("StagedStat = %q", stat)
+		t.Errorf("Stat(Staged) = %q", stat)
+	}
+}
+
+func TestDiffTracked(t *testing.T) {
+	t.Parallel()
+	r := setupMixedChanges(t)
+	ctx := t.Context()
+
+	diff, err := r.Diff(ctx, Tracked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(diff, "+staged") || !strings.Contains(diff, "+unstaged") || strings.Contains(diff, "untracked.txt") {
+		t.Errorf("Diff(Tracked) = %q; want staged and unstaged tracked changes only", diff)
+	}
+
+	stat, err := r.Stat(ctx, Tracked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stat, "2 insertions") {
+		t.Errorf("Stat(Tracked) = %q", stat)
+	}
+}
+
+func TestDiffTrackedWithoutCommits(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t)
+	writeFile(t, r.Dir, "a.txt", "one\n")
+	gitCmd(t, r.Dir, "add", "a.txt")
+	writeFile(t, r.Dir, "a.txt", "one\ntwo\n")
+
+	diff, err := r.Diff(t.Context(), Tracked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(diff, "+one") || !strings.Contains(diff, "+two") {
+		t.Errorf("Diff(Tracked) = %q", diff)
+	}
+}
+
+func lastCommit(t *testing.T, r Repo) (message, files string) {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), "git", "log", "-1", "--format=%B")
+	cmd.Dir = r.Dir
+	msg, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd = exec.CommandContext(t.Context(), "git", "show", "--format=", "HEAD")
+	cmd.Dir = r.Dir
+	diff, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(string(msg)), string(diff)
+}
+
+func TestCommit(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		changes      Changes
+		wantUnstaged bool
+	}{
+		{Staged, false},
+		{Tracked, true},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprint(tt.changes), func(t *testing.T) {
+			t.Parallel()
+			r := setupMixedChanges(t)
+			message := "feat(a): extend a\n\nAdd more lines to a."
+
+			out, err := r.Commit(t.Context(), message, tt.changes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out, "feat(a): extend a") {
+				t.Errorf("Commit output = %q", out)
+			}
+
+			gotMsg, diff := lastCommit(t, r)
+			if gotMsg != message {
+				t.Errorf("commit message = %q, want %q", gotMsg, message)
+			}
+			if strings.Contains(diff, "+unstaged") != tt.wantUnstaged || strings.Contains(diff, "untracked.txt") {
+				t.Errorf("committed diff = %q", diff)
+			}
+		})
+	}
+}
+
+func TestCommitNothingStaged(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t)
+	commitFile(t, r, "a.txt", "a\n", "feat: add a")
+
+	if _, err := r.Commit(t.Context(), "fix: nothing", Staged); err == nil {
+		t.Error("Commit: want error")
 	}
 }
 
