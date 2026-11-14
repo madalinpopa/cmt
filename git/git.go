@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -31,12 +32,53 @@ func (e *Error) Unwrap() error {
 	return e.Err
 }
 
-func (r Repo) StagedDiff(ctx context.Context) (string, error) {
-	return r.run(ctx, "diff", "--cached", "--no-color", "--no-ext-diff")
+type Changes int
+
+const (
+	Staged Changes = iota
+	Tracked
+)
+
+func (r Repo) Diff(ctx context.Context, c Changes) (string, error) {
+	return r.diff(ctx, c, "--no-color", "--no-ext-diff")
 }
 
-func (r Repo) StagedStat(ctx context.Context) (string, error) {
-	return r.run(ctx, "diff", "--cached", "--no-color", "--stat")
+func (r Repo) Stat(ctx context.Context, c Changes) (string, error) {
+	return r.diff(ctx, c, "--no-color", "--stat")
+}
+
+func (r Repo) Commit(ctx context.Context, message string, c Changes) (string, error) {
+	args := []string{"commit", "--file=-"}
+	if c == Tracked {
+		args = append(args, "--all")
+	}
+	out, err := r.runInput(ctx, strings.NewReader(message), args...)
+	return strings.TrimSpace(out), err
+}
+
+func (r Repo) diff(ctx context.Context, c Changes, flags ...string) (string, error) {
+	if c == Staged {
+		return r.run(ctx, append([]string{"diff", "--cached"}, flags...)...)
+	}
+
+	base, err := r.headOrEmptyTree(ctx)
+	if err != nil {
+		return "", err
+	}
+	return r.run(ctx, append([]string{"diff", base}, flags...)...)
+}
+
+func (r Repo) headOrEmptyTree(ctx context.Context) (string, error) {
+	hasCommits, err := r.hasCommits(ctx)
+	if err != nil {
+		return "", err
+	}
+	if hasCommits {
+		return "HEAD", nil
+	}
+
+	out, err := r.runInput(ctx, strings.NewReader(""), "hash-object", "-t", "tree", "--stdin")
+	return strings.TrimSpace(out), err
 }
 
 func (r Repo) CurrentBranch(ctx context.Context) (string, error) {
@@ -75,9 +117,14 @@ func (r Repo) hasCommits(ctx context.Context) (bool, error) {
 }
 
 func (r Repo) run(ctx context.Context, args ...string) (string, error) {
+	return r.runInput(ctx, nil, args...)
+}
+
+func (r Repo) runInput(ctx context.Context, stdin io.Reader, args ...string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec
 	cmd.Dir = r.Dir
+	cmd.Stdin = stdin
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
