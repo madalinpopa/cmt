@@ -2,9 +2,11 @@ package cli
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/madalinpopa/cmt/commit"
 	"github.com/madalinpopa/cmt/git"
 	"github.com/madalinpopa/cmt/provider/anthropic"
+	"github.com/madalinpopa/cmt/provider/copilot"
 )
 
 const recentCommitCount = 10
@@ -20,18 +23,29 @@ var errNothingToCommit = errors.New("nothing to commit; stage changes with git a
 
 type runner struct {
 	repo        git.Repo
-	newProvider func(model string) commit.Provider
+	newProvider func(name, model string) (commit.Provider, error)
 	getenv      func(key string) string
 }
 
 func defaultRunner() runner {
 	return runner{
-		newProvider: func(model string) commit.Provider { return anthropic.New(model) },
+		newProvider: newProvider,
 		getenv:      os.Getenv,
 	}
 }
 
-func (r runner) run(ctx context.Context, cmd *command.Command, opts rootOptions, args []string) error {
+func newProvider(name, model string) (commit.Provider, error) {
+	switch name {
+	case "", "anthropic":
+		return anthropic.New(cmp.Or(model, anthropic.DefaultModel)), nil
+	case "copilot":
+		return copilot.New(cmp.Or(model, copilot.DefaultModel))
+	default:
+		return nil, &command.UsageError{Message: fmt.Sprintf("unknown provider %q; use anthropic or copilot", name)}
+	}
+}
+
+func (r runner) run(ctx context.Context, cmd *command.Command, opts rootOptions, args []string) (err error) {
 	if opts.all && len(args) > 0 {
 		return &command.UsageError{Message: "--all cannot be combined with paths"}
 	}
@@ -43,6 +57,14 @@ func (r runner) run(ctx context.Context, cmd *command.Command, opts rootOptions,
 	maxDiffBytes, err := parseMaxDiffBytes(r.getenv("CMT_MAX_DIFF_BYTES"))
 	if err != nil {
 		return err
+	}
+
+	provider, err := r.newProvider(opts.provider, opts.model)
+	if err != nil {
+		return err
+	}
+	if c, ok := provider.(io.Closer); ok {
+		defer func() { err = errors.Join(err, c.Close()) }()
 	}
 
 	repo := r.repo
@@ -58,7 +80,6 @@ func (r runner) run(ctx context.Context, cmd *command.Command, opts rootOptions,
 		}
 	}
 
-	provider := r.newProvider(opts.model)
 	generate := func() (commit.Message, error) {
 		return commit.Generate(ctx, provider, in)
 	}

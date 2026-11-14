@@ -75,7 +75,7 @@ func newTestRepo(t *testing.T) string {
 func newTestRunner(dir string, p *fakeProvider, env map[string]string) runner {
 	return runner{
 		repo:        git.Repo{Dir: dir},
-		newProvider: func(string) commit.Provider { return p },
+		newProvider: func(string, string) (commit.Provider, error) { return p, nil },
 		getenv:      func(key string) string { return env[key] },
 	}
 }
@@ -153,5 +153,48 @@ func TestRunNothingToCommit(t *testing.T) {
 	err := newTestRunner(dir, &fakeProvider{}, nil).run(t.Context(), cmd, rootOptions{dryRun: true}, nil)
 	if !errors.Is(err, errNothingToCommit) {
 		t.Errorf("run error = %v, want %v", err, errNothingToCommit)
+	}
+}
+
+type closingProvider struct {
+	fakeProvider
+	closed bool
+}
+
+func (c *closingProvider) Close() error {
+	c.closed = true
+	return nil
+}
+
+func TestRunClosesProvider(t *testing.T) {
+	t.Parallel()
+	dir := newTestRepo(t)
+	writeFile(t, dir, "a.txt", "a\nchanged\n")
+	gitCmd(t, dir, "add", "a.txt")
+
+	p := &closingProvider{msg: commit.Message{Type: "fix", Subject: "change a"}}
+	r := newTestRunner(dir, nil, nil)
+	r.newProvider = func(string, string) (commit.Provider, error) { return p, nil }
+
+	cmd := &command.Command{}
+	cmd.SetOut(&bytes.Buffer{})
+	if err := r.run(t.Context(), cmd, rootOptions{dryRun: true}, nil); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if !p.closed {
+		t.Error("provider was not closed")
+	}
+}
+
+func TestNewProvider(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"", "anthropic"} {
+		if _, err := newProvider(name, ""); err != nil {
+			t.Errorf("newProvider(%q): %v", name, err)
+		}
+	}
+	_, err := newProvider("openai", "")
+	if _, ok := errors.AsType[*command.UsageError](err); !ok {
+		t.Errorf("newProvider(openai) error = %v; want *command.UsageError", err)
 	}
 }
