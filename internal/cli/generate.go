@@ -12,6 +12,7 @@ import (
 	"github.com/madalinpopa/cmt/internal/commit"
 	"github.com/madalinpopa/cmt/internal/provider/anthropic"
 	"github.com/madalinpopa/cmt/internal/provider/copilot"
+	"github.com/madalinpopa/cmt/internal/provider/gemini"
 	"github.com/madalinpopa/cmt/internal/provider/openai"
 	"github.com/madalinpopa/cmt/internal/vcs"
 )
@@ -20,7 +21,7 @@ var errChangesModified = errors.New("changes were modified while the message was
 
 type runner struct {
 	repo        vcs.Repo
-	newProvider func(name, model string) (commit.Provider, error)
+	newProvider func(ctx context.Context, name, model string) (commit.Provider, error)
 	getenv      func(key string) string
 }
 
@@ -31,16 +32,18 @@ func defaultRunner() runner {
 	}
 }
 
-func newProvider(name, model string) (commit.Provider, error) {
+func newProvider(ctx context.Context, name, model string) (commit.Provider, error) {
 	switch name {
 	case "", "anthropic":
 		return anthropic.New(cmp.Or(model, anthropic.DefaultModel)), nil
 	case "openai":
 		return openai.New(cmp.Or(model, openai.DefaultModel)), nil
+	case "gemini":
+		return gemini.New(ctx, cmp.Or(model, gemini.DefaultModel), nil)
 	case "copilot":
 		return copilot.New(cmp.Or(model, copilot.DefaultModel))
 	default:
-		return nil, &command.UsageError{Message: fmt.Sprintf("unknown provider %q; use anthropic, openai, or copilot", name)}
+		return nil, &command.UsageError{Message: fmt.Sprintf("unknown provider %q; use anthropic, openai, gemini, or copilot", name)}
 	}
 }
 
@@ -58,7 +61,7 @@ func (r runner) run(ctx context.Context, cmd *command.Command, opts rootOptions,
 		return err
 	}
 
-	provider, err := r.newProvider(opts.provider, opts.model)
+	provider, err := r.newProvider(ctx, opts.provider, opts.model)
 	if err != nil {
 		return err
 	}
