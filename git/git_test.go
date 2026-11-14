@@ -2,6 +2,7 @@ package git
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,11 +11,23 @@ import (
 	"testing"
 )
 
+func TestMain(m *testing.M) {
+	env := map[string]string{
+		"GIT_CONFIG_GLOBAL":       os.DevNull,
+		"GIT_CONFIG_NOSYSTEM":     "1",
+		"GIT_CEILING_DIRECTORIES": os.TempDir(),
+	}
+	for key, value := range env {
+		if err := os.Setenv(key, value); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+	m.Run()
+}
+
 func newRepo(t *testing.T) Repo {
 	t.Helper()
-	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-
 	dir := t.TempDir()
 	gitCmd(t, dir, "init", "--initial-branch=main")
 	gitCmd(t, dir, "config", "user.name", "Test")
@@ -46,6 +59,7 @@ func commitFile(t *testing.T, r Repo, name, content, subject string) {
 }
 
 func TestEmptyRepo(t *testing.T) {
+	t.Parallel()
 	r := newRepo(t)
 	ctx := t.Context()
 
@@ -66,6 +80,7 @@ func TestEmptyRepo(t *testing.T) {
 }
 
 func TestStagedChangesOnly(t *testing.T) {
+	t.Parallel()
 	r := newRepo(t)
 	ctx := t.Context()
 	commitFile(t, r, "a.txt", "one\n", "feat: add a")
@@ -92,6 +107,7 @@ func TestStagedChangesOnly(t *testing.T) {
 }
 
 func TestRecentCommits(t *testing.T) {
+	t.Parallel()
 	r := newRepo(t)
 	ctx := t.Context()
 	commitFile(t, r, "a.txt", "a\n", "feat: add a")
@@ -108,6 +124,7 @@ func TestRecentCommits(t *testing.T) {
 }
 
 func TestDetachedHead(t *testing.T) {
+	t.Parallel()
 	r := newRepo(t)
 	commitFile(t, r, "a.txt", "a\n", "feat: add a")
 	gitCmd(t, r.Dir, "checkout", "--detach")
@@ -119,7 +136,7 @@ func TestDetachedHead(t *testing.T) {
 }
 
 func TestNotARepository(t *testing.T) {
-	t.Setenv("GIT_CEILING_DIRECTORIES", os.TempDir())
+	t.Parallel()
 	r := Repo{Dir: t.TempDir()}
 
 	_, err := r.RecentCommits(t.Context(), 1)
