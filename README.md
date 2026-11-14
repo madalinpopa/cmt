@@ -14,7 +14,13 @@ Requirements:
 - `git` in your `PATH`
 - Credentials for one provider: an Anthropic API key, or the [GitHub Copilot CLI](https://github.com/github/copilot-cli) signed in
 
-Install:
+Install with Homebrew (macOS and Linux):
+
+```sh
+brew install --cask madalinpopa/tap/cmt
+```
+
+Or with Go:
 
 ```sh
 go install github.com/madalinpopa/cmt@latest
