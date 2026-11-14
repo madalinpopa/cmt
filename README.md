@@ -67,20 +67,22 @@ Type the letter and press Enter.
 | `r` | Ask the model for a new message |
 | `n` | Cancel without committing |
 
+Before committing with `y` or `e`, `cmt` checks that the changes still match what the model saw. If the index or files changed in the meantime (for example, you staged more from another terminal), it reads the changes again, generates a new message, and asks again. `r` also re-reads the current changes.
+
 ## Commands and flags
 
 ```text
 cmt [flags] [--] [path...]
 ```
 
-Without paths, `cmt` commits what is staged. With paths, it commits the current content of those paths only, like `git commit -- <path>...`, and leaves the rest of the index alone. Put flags before paths: everything after the first path is treated as a path.
+Without paths, `cmt` commits what is staged. With paths, it commits the current content of those paths only, like `git commit -- <path>...`, and leaves the rest of the index alone. Put flags before paths: everything after the first path is treated as a path. Without paths, changes outside the current directory are included too, even when `diff.relative` is enabled.
 
 The menu needs a terminal. When stdin is not a terminal (scripts, CI, editor commands), use `--yes` or `--dry-run`.
 
 | Flag | Description |
 |------|-------------|
 | `-a`, `--all` | Include unstaged changes to tracked files (like `git commit -a`); cannot be combined with paths |
-| `-y`, `--yes` | Commit without asking for confirmation |
+| `-y`, `--yes` | Commit without asking for confirmation; fails without committing if the changes were modified while the message was generated |
 | `--dry-run` | Print the generated message to stdout without committing |
 | `-c`, `--context "..."` | Give the model a hint, e.g. `-c "fixes #12"` |
 | `--provider <name>` | Model provider: `anthropic` (default) or `copilot` |
@@ -126,7 +128,7 @@ cmt --provider copilot --model gpt-5-mini
 
 ## Large diffs
 
-Lockfiles (`go.sum`, `package-lock.json`, ...), minified and protobuf-generated files, and files marked `linguist-generated` in `.gitattributes` are left out of the diff sent to the model; binary files are sent only as a one-line note. They still appear in the file summary. If the diff is still bigger than `CMT_MAX_DIFF_BYTES`, `cmt` warns you on stderr and sends the file summary plus a partial diff cut at file boundaries instead of quietly cutting it.
+Lockfiles (`go.sum`, `package-lock.json`, ...), minified and protobuf-generated files, and files marked `linguist-generated` in `.gitattributes` are left out of the diff sent to the model; binary files are sent only as a one-line note, even when a `textconv` driver is configured. They still appear in the file summary. If the diff is still bigger than `CMT_MAX_DIFF_BYTES`, `cmt` warns you on stderr and sends the file summary plus a partial diff cut at file boundaries instead of quietly cutting it.
 
 ## Editor integration
 
