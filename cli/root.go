@@ -2,12 +2,12 @@ package cli
 
 import (
 	"cmp"
+	"context"
 	"os"
 
 	"github.com/madalinpopa/cmt/command"
+	"github.com/madalinpopa/cmt/provider/anthropic"
 )
-
-const defaultModel = "claude-haiku-5-5"
 
 type rootOptions struct {
 	all     bool
@@ -29,6 +29,9 @@ cmt --dry-run
 cmt -c "closes #42"
 cmt -a -y
 cmt --model claude-opus-5-5`,
+		Run: func(ctx context.Context, cmd *command.Command, args []string) error {
+			return runRoot(ctx, cmd, opts, args)
+		},
 	}
 
 	fs := cmd.Flags()
@@ -39,7 +42,7 @@ cmt --model claude-opus-5-5`,
 	fs.BoolVar(&opts.dryRun, "dry-run", false, "print the generated message without committing")
 	fs.StringVar(&opts.context, "c", "", "shorthand for --context")
 	fs.StringVar(&opts.context, "context", "", "give the model a hint, e.g. \"fixes #12\"")
-	fs.StringVar(&opts.model, "model", cmp.Or(os.Getenv("CMT_MODEL"), defaultModel), "Claude model to use")
+	fs.StringVar(&opts.model, "model", cmp.Or(os.Getenv("CMT_MODEL"), anthropic.DefaultModel), "Claude model to use")
 	fs.BoolVar(&opts.plain, "plain", false, "write a free-form message instead of Conventional Commits")
 
 	return cmd
