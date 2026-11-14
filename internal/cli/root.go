@@ -22,7 +22,7 @@ func NewRootCommand() *command.Command {
 
 	cmd := &command.Command{
 		Use:   "cmt [flags] [--] [path...]",
-		Short: "Generate git commit messages from your staged changes with Claude, OpenAI, or GitHub Copilot, then commit them.",
+		Short: "Generate git commit messages from your staged changes with Claude, OpenAI, Gemini, or GitHub Copilot, then commit them.",
 		Example: `cmt -a
 cmt --dry-run
 cmt -c "closes #42"
@@ -43,8 +43,8 @@ cmt --provider copilot`,
 	fs.BoolVar(&opts.dryRun, "dry-run", false, "print the generated message without committing")
 	fs.StringVar(&opts.context, "c", "", "shorthand for --context")
 	fs.StringVar(&opts.context, "context", "", "give the model a hint, e.g. \"fixes #12\"")
-	fs.StringVar(&opts.provider, "provider", os.Getenv("CMT_PROVIDER"), "model provider: anthropic (default), openai, or copilot")
-	fs.StringVar(&opts.model, "model", os.Getenv("CMT_MODEL"), "model to use (default: claude-haiku-5-5 for anthropic, gpt-5.4-mini for openai, auto for copilot)")
+	fs.StringVar(&opts.provider, "provider", os.Getenv("CMT_PROVIDER"), "model provider: anthropic (default), openai, gemini, or copilot")
+	fs.StringVar(&opts.model, "model", os.Getenv("CMT_MODEL"), "model to use (default: claude-haiku-5-5 for anthropic, gpt-5.4-mini for openai, gemini-3.5-flash for gemini, auto for copilot)")
 	fs.BoolVar(&opts.plain, "plain", false, "write a free-form message instead of Conventional Commits")
 
 	return cmd
