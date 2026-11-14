@@ -25,6 +25,7 @@ func newTestCommand(got *[]string) (*Command, *bool, *string) {
 }
 
 func TestExecuteFlags(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		args    []string
@@ -41,6 +42,7 @@ func TestExecuteFlags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var got []string
 			c, all, msg := newTestCommand(&got)
 			if err := c.Execute(t.Context(), tt.args); err != nil {
@@ -57,6 +59,7 @@ func TestExecuteFlags(t *testing.T) {
 }
 
 func TestExecuteHelp(t *testing.T) {
+	t.Parallel()
 	var got []string
 	c, _, _ := newTestCommand(&got)
 	var out bytes.Buffer
@@ -76,6 +79,7 @@ func TestExecuteHelp(t *testing.T) {
 }
 
 func TestExecuteUsageErrors(t *testing.T) {
+	t.Parallel()
 	var got []string
 	c, _, _ := newTestCommand(&got)
 	c.MarkRequired("context", "all")
@@ -95,6 +99,7 @@ func TestExecuteUsageErrors(t *testing.T) {
 }
 
 func TestExecuteNilRunPrintsUsage(t *testing.T) {
+	t.Parallel()
 	c := &Command{Use: "cmt"}
 	var out bytes.Buffer
 	c.SetOut(&out)
