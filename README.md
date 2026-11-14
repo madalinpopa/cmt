@@ -1,13 +1,13 @@
 # cmt
 
-Generate git commit messages from your staged changes with Claude, then commit them.
+Generate git commit messages from your staged changes with Claude or GitHub Copilot, then commit them.
 
 > **Status:** early development — the interface may still change before v1.
 
 ## How it works
 
 1. Reads the diff of what will be committed, the changed-file summary, recent commit subjects (to match your style), and the current branch name.
-2. Sends them to the Anthropic API and gets back a structured [Conventional Commits](https://www.conventionalcommits.org/) message.
+2. Sends them to the selected provider (Anthropic API or GitHub Copilot) and gets back a structured [Conventional Commits](https://www.conventionalcommits.org/) message.
 3. Shows the message and asks what to do: commit, edit, regenerate, or cancel.
 4. Commits with `git commit`, so your hooks, signing, and git config still apply.
 
@@ -29,6 +29,14 @@ or sign in once with the Anthropic CLI:
 
 ```sh
 ant auth login
+```
+
+### GitHub Copilot
+
+With `--provider copilot`, `cmt` uses the [GitHub Copilot SDK](https://github.com/github/copilot-sdk), which runs the [Copilot CLI](https://github.com/github/copilot-cli) in the background. Install the CLI, sign in once with `copilot`, and make sure `copilot` is in your `PATH` (or set `COPILOT_CLI_PATH`). The CLI also accepts a token from `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, or `GITHUB_TOKEN`. Requests count against your Copilot plan.
+
+```sh
+cmt --provider copilot
 ```
 
 ## Usage
@@ -56,7 +64,7 @@ Type the letter and press Enter.
 |-----|--------|
 | `y` | Commit with the generated message |
 | `e` | Open the message in your git editor, then commit (saving an empty message cancels) |
-| `r` | Ask Claude for a new message |
+| `r` | Ask the model for a new message |
 | `n` | Cancel without committing |
 
 ## Commands and flags
@@ -75,7 +83,8 @@ The menu needs a terminal. When stdin is not a terminal (scripts, CI, editor com
 | `-y`, `--yes` | Commit without asking for confirmation |
 | `--dry-run` | Print the generated message to stdout without committing |
 | `-c`, `--context "..."` | Give the model a hint, e.g. `-c "fixes #12"` |
-| `--model <id>` | Use another Claude model (default: `claude-haiku-5-5`) |
+| `--provider <name>` | Model provider: `anthropic` (default) or `copilot` |
+| `--model <id>` | Model to use (default: `claude-haiku-5-5` for `anthropic`, `auto` for `copilot`) |
 | `--plain` | Write a free-form message instead of Conventional Commits |
 | `-h`, `--help` | Show help |
 
@@ -99,6 +108,9 @@ cmt -- README.md cli/
 
 # Use a more capable model
 cmt --model claude-opus-5-5
+
+# Use GitHub Copilot with a specific model
+cmt --provider copilot --model gpt-5-mini
 ```
 
 ## Environment variables
@@ -106,7 +118,9 @@ cmt --model claude-opus-5-5
 | Variable | Description |
 |----------|-------------|
 | `ANTHROPIC_API_KEY` | Anthropic API key (optional if you used `ant auth login`) |
+| `CMT_PROVIDER` | Default provider; the `--provider` flag overrides it |
 | `CMT_MODEL` | Default model; the `--model` flag overrides it |
+| `COPILOT_CLI_PATH` | Path to the Copilot CLI when it is not in `PATH` |
 | `CMT_MAX_DIFF_BYTES` | Diff size limit sent to the model (default: `200000`) |
 | `EDITOR` | Editor opened by the `e` action, unless `GIT_EDITOR`, `core.editor`, or `VISUAL` is set (same order as git) |
 
