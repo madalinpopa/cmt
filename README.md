@@ -1,45 +1,60 @@
-# cmt
+<h1 align="center">cmt</h1>
 
-`cmt` is a command-line tool that writes a git commit message for your changes and then commits them. It sends the diff, a file summary, the current branch, and your recent commit subjects to Claude (Anthropic API) or GitHub Copilot, and returns a [Conventional Commits](https://www.conventionalcommits.org/) message that you can accept, edit, or regenerate. It is meant for developers who want consistent commit messages without writing each one by hand.
+<p align="center">
+  Conventional Commit messages generated from your git diff, by Claude or GitHub Copilot.
+</p>
 
-The commit itself is made with `git commit`, so your hooks, signing, and git config still apply.
+<p align="center">
+  <a href="https://github.com/madalinpopa/cmt/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/madalinpopa/cmt/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/madalinpopa/cmt/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/madalinpopa/cmt?include_prereleases&sort=semver"></a>
+  <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/madalinpopa/cmt"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/madalinpopa/cmt"></a>
+</p>
 
-> **Status:** early development — the interface may still change before v1.
+<p align="center">
+  <img alt="cmt demo" src="docs/demo.gif" width="880">
+</p>
 
-## Installation and quick start
+`cmt` reads your changes, asks a model for a [Conventional Commits](https://www.conventionalcommits.org/) message, and commits with `git commit`, so hooks, signing, and git configuration still apply. The model receives the diff, a file summary, the current branch, and your recent commit subjects.
 
-Requirements:
+The interface may change before v1.
 
-- Go 1.27.4 or newer (from `go.mod`)
-- `git` in your `PATH`
-- Credentials for one provider: an Anthropic API key, or the [GitHub Copilot CLI](https://github.com/github/copilot-cli) signed in
+## Installation
 
-Install with Homebrew (macOS and Linux):
+Homebrew (macOS and Linux):
 
 ```sh
 brew install --cask madalinpopa/tap/cmt
 ```
 
-Or with Go:
+Go 1.27.4 or newer:
 
 ```sh
 go install github.com/madalinpopa/cmt@latest
 ```
 
-Set up credentials for the default provider (Anthropic):
+Prebuilt archives for Linux and macOS (amd64, arm64) are attached to each [release](https://github.com/madalinpopa/cmt/releases).
+
+`cmt` requires `git` in `PATH` and credentials for one provider: an Anthropic API key, or a signed-in [GitHub Copilot CLI](https://github.com/github/copilot-cli).
+
+## Quick start
 
 ```sh
 export ANTHROPIC_API_KEY=<your-api-key>
-```
-
-Stage a change and run `cmt` inside the repository:
-
-```sh
 git add -p
 cmt
 ```
 
-`cmt` prints the generated message and a menu. Type `y` and press Enter to commit.
+`cmt` prints the message and waits for an answer:
+
+| Answer | Action |
+|--------|--------|
+| `y` | Commit with the generated message |
+| `e` | Edit the message in your git editor, then commit; an empty message cancels |
+| `r` | Generate a new message |
+| `n` | Cancel |
+
+If the changes are modified while the message is being generated, `cmt` regenerates before committing.
 
 ## Usage
 
@@ -49,156 +64,90 @@ cmt [flags] [--] [path...]
 
 | Flag | Description |
 |------|-------------|
-| `-a`, `--all` | Include unstaged changes to tracked files, like `git commit -a`; cannot be combined with paths |
-| `-y`, `--yes` | Commit without asking for confirmation |
-| `--dry-run` | Print the generated message to stdout without committing |
-| `-c`, `--context "..."` | Give the model a hint, e.g. `-c "fixes #12"` |
+| `-a`, `--all` | Include unstaged changes to tracked files, like `git commit -a` |
+| `-y`, `--yes` | Commit without confirmation |
+| `--dry-run` | Print the message to stdout without committing |
+| `-c`, `--context <text>` | Give the model a hint, e.g. `"closes #42"` |
 | `--provider <name>` | `anthropic` (default) or `copilot` |
-| `--model <id>` | Model to use (default: `claude-haiku-5-5` for `anthropic`, `auto` for `copilot`) |
-| `--plain` | Write a free-form message instead of Conventional Commits |
-| `-h`, `--help` | Show help |
+| `--model <id>` | Model ID; defaults to `claude-haiku-5-5` (Anthropic) or `auto` (Copilot) |
+| `--plain` | Free-form message instead of Conventional Commits |
 
-Without paths, `cmt` commits what is staged. With paths, it commits the current content of those paths only, like `git commit --only -- <path>...`, and leaves the rest of the index alone. Put flags before paths.
+Without paths, `cmt` commits the index. With paths, it commits only those paths, like `git commit --only`, and leaves the rest of the index untouched. `--all` cannot be combined with paths.
 
-### Example 1: review and commit staged changes
-
-The default mode. `cmt` shows the message and waits for your choice.
+### Examples
 
 ```sh
-cmt
+cmt                                  # review the message, then commit staged changes
+cmt -a -y                            # commit all tracked changes without confirmation
+cmt -y -- README.md cli/             # commit only these paths
+cmt --dry-run -c "closes #42"        # print the message only
+cmt --provider copilot --model gpt-5-mini
+cmt --plain                          # free-form message
 ```
 
-Output (the message text is illustrative; it depends on your diff and the model):
+The confirmation menu needs a terminal. In scripts, CI, and editors use `--yes` or `--dry-run`. `--dry-run` writes only the message to stdout, so it can be inserted into a commit buffer: `:0r !cmt --dry-run` in Neovim, `:insert-output cmt --dry-run` in Helix.
 
-```text
-feat(git): add staged diff reader
-
-Read the staged diff and file summary via the git binary so hooks
-and signing configuration are respected.
-
-[y] commit  [e] edit  [r] regenerate  [n] cancel:
-```
-
-| Answer | Action |
-|--------|--------|
-| `y` | Commit with the generated message |
-| `e` | Open the message in your git editor, then commit (an empty message cancels) |
-| `r` | Read the changes again and generate a new message |
-| `n` | Cancel without committing; prints `Canceled.` |
-
-Before committing with `y` or `e`, `cmt` checks that the changes still match what the model saw. If they changed in the meantime, it prints `Changes were modified after the message was generated; regenerating.` and asks again.
-
-The menu requires a terminal. In scripts, CI, or editor commands, use `--yes` or `--dry-run`.
-
-### Example 2: preview a message without committing
-
-Useful for checking the result first, or for inserting the message from an editor. Only the message goes to stdout; warnings and errors go to stderr.
-
-```sh
-cmt --dry-run -c "closes #42"
-```
-
-Output (from the test `TestDryRunWritesOnlyMessageToStdout`, which uses a fake provider):
-
-```text
-feat(a): extend files
-
-Add lines.
-```
-
-In the commit message buffer opened by `git commit`, Neovim users can run `:0r !cmt --dry-run` and Helix users `:insert-output cmt --dry-run`.
-
-### Example 3: commit only some files, without the prompt
-
-Commits the current content of `README.md` and `cli/` and leaves anything else staged as it is.
-
-```sh
-cmt -y -- README.md cli/
-```
-
-Output: the summary printed by `git commit`, for example (illustrative):
-
-```text
-[main 1a2b3c4] docs(readme): describe dry-run output
- 1 file changed, 4 insertions(+)
-```
-
-With `--yes`, if the changes are modified while the message is generated, `cmt` commits nothing and exits with:
-
-```text
-error: changes were modified while the message was being generated; run cmt again
-```
-
-With nothing to commit, it exits with:
-
-```text
-error: nothing to commit; stage changes with git add, use --all, or pass paths
-```
-
-Exit codes: `0` on success, `1` on errors, `2` on invalid flags or arguments.
+Exit codes: `0` success, `1` error, `2` invalid flags or arguments.
 
 ## Configuration
 
-### Providers
-
-**Anthropic** (default) uses the official Anthropic Go SDK, which reads credentials from the environment, for example `ANTHROPIC_API_KEY`.
-
-**GitHub Copilot** runs the Copilot CLI in the background through the [GitHub Copilot SDK](https://github.com/github/copilot-sdk). Install the CLI, sign in once with `copilot`, and make sure `copilot` is in your `PATH` (or set `COPILOT_CLI_PATH`). Requests count against your Copilot plan.
-
-```sh
-cmt --provider copilot --model gpt-5-mini
-```
-
-### Environment variables
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | — | Anthropic API key, required for the `anthropic` provider unless the SDK finds other credentials |
-| `CMT_PROVIDER` | `anthropic` | Default provider; `--provider` overrides it |
-| `CMT_MODEL` | provider default | Default model; `--model` overrides it |
-| `CMT_MAX_DIFF_BYTES` | `200000` | Maximum diff size sent to the model; must be a positive integer |
-| `COPILOT_CLI_PATH` | `copilot` from `PATH` | Path to the Copilot CLI |
-| `EDITOR` | — | Editor for the `e` action, used when `GIT_EDITOR`, `core.editor`, and `VISUAL` are not set (same order as git) |
+| `ANTHROPIC_API_KEY` | | Anthropic API key |
+| `CMT_PROVIDER` | `anthropic` | Default provider |
+| `CMT_MODEL` | provider default | Default model |
+| `CMT_MAX_DIFF_BYTES` | `200000` | Maximum diff size sent to the model |
+| `COPILOT_CLI_PATH` | `copilot` in `PATH` | Path to the Copilot CLI |
 
-### What is sent to the model
+Flags take precedence over environment variables. The edit action resolves the editor in the same order as git: `GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`.
 
-Lockfiles (`go.sum`, `package-lock.json`, `yarn.lock`, `Cargo.lock`, and similar), `*.pb.go`, `*.min.js`, `*.min.css`, and files marked `linguist-generated` in `.gitattributes` are left out of the diff but still listed in the file summary. Binary files are not sent as content. If the diff is larger than `CMT_MAX_DIFF_BYTES`, `cmt` prints a warning on stderr and sends a partial diff cut at file boundaries.
+The Copilot provider runs the Copilot CLI through the [GitHub Copilot SDK](https://github.com/github/copilot-sdk); sign in once with `copilot`. Requests count against your Copilot plan.
 
-## Troubleshooting
+### Data sent to the model
 
-| Error | Fix |
-|-------|-----|
-| `stdin is not a terminal; use --yes to commit or --dry-run to only print the message` | The confirmation menu needs a terminal. Pass `--yes` or `--dry-run` in scripts and editors. |
-| `nothing to commit; stage changes with git add, use --all, or pass paths` | Stage changes first, or use `-a` or paths. |
-| `--all cannot be combined with paths` | Use either `-a` or paths, not both. |
-| `copilot: GitHub Copilot CLI not found in PATH; install it or set COPILOT_CLI_PATH` | Install the Copilot CLI or set `COPILOT_CLI_PATH` to its location. |
-| `anthropic: ...` authentication errors | Check that `ANTHROPIC_API_KEY` is set in the shell that runs `cmt`. |
-| `warning: diff is larger than ... bytes (CMT_MAX_DIFF_BYTES); sending a partial diff` | The model saw only part of the diff. Commit in smaller pieces or raise `CMT_MAX_DIFF_BYTES`. |
+Lockfiles, `*.pb.go`, `*.min.js`, `*.min.css`, and files marked `linguist-generated` in `.gitattributes` are listed in the file summary but their content is not sent. Binary content is never sent. Diffs larger than `CMT_MAX_DIFF_BYTES` are cut at file boundaries, with a warning on stderr.
 
 ## Development
 
-Clone the repository and use the [Task](https://taskfile.dev) targets from `Taskfile.yml`, or the equivalent Go commands:
+Requires Go 1.27.4+, [Task](https://taskfile.dev), and [golangci-lint](https://golangci-lint.run).
 
-| Task | Command | Runs |
-|------|---------|------|
-| `task run -- <args>` | `go run . <args>` | Run `cmt` from source |
-| `task test` | `go test ./...` | Run all tests |
-| `task lint` | `golangci-lint run ./...` and `go mod tidy -diff` | Lint and check that `go.mod`/`go.sum` are tidy |
-| `task format` | `go fmt ./...` and `golangci-lint fmt ./...` | Format code |
-| `task check` | — | `format` followed by `lint` |
-
-Linting requires [golangci-lint](https://golangci-lint.run); its configuration is in [`.golangci.yml`](.golangci.yml).
-
-### Project layout
+| Command | Description |
+|---------|-------------|
+| `task run -- <args>` | Run from source |
+| `task test` | Run the tests |
+| `task lint` | Lint and verify `go.mod` and `go.sum` are tidy |
+| `task format` | Format the code |
+| `task check` | Format, then lint |
 
 | Package | Responsibility |
 |---------|----------------|
-| [`main.go`](main.go) | Entry point; wires signal handling and exit codes |
-| [`cli/`](cli) | Root command, flags, input collection, diff filtering and truncation, confirmation menu |
-| [`command/`](command) | Minimal command and flag-parsing framework on top of the standard `flag` package |
-| [`commit/`](commit) | Prompt construction, message validation, and formatting |
-| [`provider/anthropic/`](provider/anthropic), [`provider/copilot/`](provider/copilot) | Model providers |
-| [`vcs/`](vcs) | Git operations (diff, stat, snapshot, commit) run through the `git` binary |
+| [`cli`](cli) | Root command, input collection, diff filtering, confirmation |
+| [`command`](command) | Command and flag parsing on top of the standard `flag` package |
+| [`commit`](commit) | Prompt construction, message validation and formatting |
+| [`provider`](provider) | Anthropic and Copilot providers |
+| [`vcs`](vcs) | Git operations through the `git` binary |
+
+The demo is recorded with [VHS](https://github.com/charmbracelet/vhs) and calls the configured provider:
+
+```sh
+vhs docs/demo.tape
+```
+
+## Releases
+
+Every push and pull request runs lint, tests with the race detector, and a GoReleaser snapshot build. Pushing a `vX.Y.Z` tag from `main` publishes a GitHub release and updates the Homebrew cask.
+
+```sh
+task release:patch   # or release:minor, release:major
+```
+
+## Contributing
+
+1. Open an issue for significant changes before starting work.
+2. Create a branch from `main`.
+3. Write commits in the [Conventional Commits](https://www.conventionalcommits.org/) format.
+4. Run `task check` and `task test` before pushing.
+5. Open a pull request with a clear description of the change and its motivation.
 
 ## License
 
