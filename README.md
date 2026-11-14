@@ -69,7 +69,7 @@ cmt [flags]
 | `-y`, `--yes` | Commit without asking for confirmation |
 | `--dry-run` | Print the generated message without committing |
 | `-c`, `--context "..."` | Give the model a hint, e.g. `-c "fixes #12"` |
-| `--model <id>` | Use another Claude model (default: `claude-opus-5-5`) |
+| `--model <id>` | Use another Claude model (default: `claude-haiku-5-5`) |
 | `--plain` | Write a free-form message instead of Conventional Commits |
 | `-h`, `--help` | Show help |
 
@@ -88,8 +88,8 @@ cmt -c "closes #42, requested by support"
 # Commit without the prompt (e.g. in scripts)
 cmt -a -y
 
-# Use a cheaper, faster model
-cmt --model claude-haiku-5-5
+# Use a more capable model
+cmt --model claude-opus-5-5
 ```
 
 ## Environment variables
@@ -107,9 +107,14 @@ Lockfiles (`go.sum`, `package-lock.json`, ...), binary files, and generated file
 
 ## Development
 
+Requires [Task](https://taskfile.dev) and [golangci-lint](https://golangci-lint.run).
+
 ```sh
-go build ./...
-go test ./...
+task run -- --help   # run the CLI with arguments
+task test            # run all tests
+task format          # format Go code
+task lint            # run golangci-lint and check go.mod/go.sum are tidy
+task check           # format, then lint
 ```
 
 ## License

@@ -28,7 +28,7 @@ func NewRootCommand() *command.Command {
 cmt --dry-run
 cmt -c "closes #42"
 cmt -a -y
-cmt --model claude-haiku-5-5`,
+cmt --model claude-opus-5-5`,
 	}
 
 	fs := cmd.Flags()
