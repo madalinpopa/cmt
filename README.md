@@ -8,11 +8,14 @@
   <a href="https://github.com/madalinpopa/cmt/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/madalinpopa/cmt/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/madalinpopa/cmt/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/madalinpopa/cmt?include_prereleases&sort=semver"></a>
   <a href="go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/madalinpopa/cmt"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/madalinpopa/cmt"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
 <p align="center">
-  <img alt="cmt demo" src="docs/demo.gif" width="880">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/demo-light.gif">
+    <img alt="cmt demo" src="docs/demo.gif" width="880">
+  </picture>
 </p>
 
 `cmt` reads your changes, asks a model for a [Conventional Commits](https://www.conventionalcommits.org/) message, and commits with `git commit`, so hooks, signing, and git configuration still apply. The model receives the diff, a file summary, the current branch, and your recent commit subjects.
