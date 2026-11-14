@@ -1,7 +1,7 @@
 <h1 align="center">cmt</h1>
 
 <p align="center">
-  Conventional Commit messages generated from your git diff, by Claude, OpenAI, or GitHub Copilot.
+  Conventional Commit messages generated from your git diff, by Claude, OpenAI, Gemini, or GitHub Copilot.
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@ go install github.com/madalinpopa/cmt/cmd/cmt@latest
 
 Prebuilt archives for Linux and macOS (amd64, arm64) are attached to each [release](https://github.com/madalinpopa/cmt/releases).
 
-`cmt` requires `git` in `PATH` and credentials for one provider: an Anthropic API key, an OpenAI API key, or a signed-in [GitHub Copilot CLI](https://github.com/github/copilot-cli).
+`cmt` requires `git` in `PATH` and credentials for one provider: an Anthropic API key, an OpenAI API key, a Gemini API key, or a signed-in [GitHub Copilot CLI](https://github.com/github/copilot-cli).
 
 ## Quick start
 
@@ -68,8 +68,8 @@ cmt [flags] [--] [path...]
 | `-y`, `--yes` | Commit without confirmation |
 | `--dry-run` | Print the message to stdout without committing |
 | `-c`, `--context <text>` | Give the model a hint, e.g. `"closes #42"` |
-| `--provider <name>` | `anthropic` (default), `openai`, or `copilot` |
-| `--model <id>` | Model ID; defaults to `claude-haiku-5-5` (Anthropic), `gpt-5.4-mini` (OpenAI), or `auto` (Copilot) |
+| `--provider <name>` | `anthropic` (default), `openai`, `gemini`, or `copilot` |
+| `--model <id>` | Model ID; defaults to `claude-haiku-5-5` (Anthropic), `gpt-5.4-mini` (OpenAI), `gemini-3.5-flash` (Gemini), or `auto` (Copilot) |
 | `--plain` | Free-form message instead of Conventional Commits |
 
 Without paths, `cmt` commits the index. With paths, it commits only those paths, like `git commit --only`, and leaves the rest of the index untouched. `--all` cannot be combined with paths.
@@ -82,6 +82,7 @@ cmt -a -y                            # commit all tracked changes without confir
 cmt -y -- README.md cli/             # commit only these paths
 cmt --dry-run -c "closes #42"        # print the message only
 cmt --provider openai
+cmt --provider gemini
 cmt --provider copilot --model gpt-5-mini
 cmt --plain                          # free-form message
 ```
@@ -96,6 +97,7 @@ Exit codes: `0` success, `1` error, `2` invalid flags or arguments.
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | | Anthropic API key |
 | `OPENAI_API_KEY` | | OpenAI API key |
+| `GEMINI_API_KEY` | | Gemini API key; `GOOGLE_API_KEY` also works and takes precedence |
 | `CMT_PROVIDER` | `anthropic` | Default provider |
 | `CMT_MODEL` | provider default | Default model |
 | `CMT_MAX_DIFF_BYTES` | `200000` | Maximum diff size sent to the model |
@@ -127,7 +129,7 @@ Requires Go 1.27.4+, [Task](https://taskfile.dev), and [golangci-lint](https://g
 | [`internal/cli`](internal/cli) | Root command, input collection, diff filtering, confirmation |
 | [`internal/command`](internal/command) | Command and flag parsing on top of the standard `flag` package |
 | [`internal/commit`](internal/commit) | Prompt construction, message validation and formatting |
-| [`internal/provider`](internal/provider) | Anthropic, OpenAI, and Copilot providers |
+| [`internal/provider`](internal/provider) | Anthropic, OpenAI, Gemini, and Copilot providers |
 | [`internal/vcs`](internal/vcs) | Git operations through the `git` binary |
 
 The demo is recorded with [VHS](https://github.com/charmbracelet/vhs) and calls the configured provider:
