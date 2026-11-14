@@ -182,14 +182,6 @@ The demo is recorded with [VHS](https://github.com/charmbracelet/vhs) and calls 
 vhs docs/demo.tape
 ```
 
-## Releases
-
-Every push to `main` and every pull request runs lint, tests with the race detector, and a GoReleaser snapshot build. Pushing a `vX.Y.Z` tag on a `main` commit whose CI passed publishes a GitHub release and updates the Homebrew cask, without rerunning those checks.
-
-```sh
-task release:patch   # or release:minor, release:major
-```
-
 ## Contributing
 
 1. Open an issue for significant changes before starting work.
