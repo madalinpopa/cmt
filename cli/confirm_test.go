@@ -54,12 +54,12 @@ func TestConfirmRegenerateThenCancel(t *testing.T) {
 	cmd.SetOut(&out)
 
 	calls := 0
-	regenerate := func() (commit.Message, error) {
+	regenerate := func() (draft, error) {
 		calls++
-		return commit.Message{Type: "fix", Subject: "second try"}, nil
+		return draft{msg: commit.Message{Type: "fix", Subject: "second try"}}, nil
 	}
 
-	first := commit.Message{Type: "feat", Subject: "first try"}
+	first := draft{msg: commit.Message{Type: "feat", Subject: "first try"}}
 	if err := confirmAndCommit(t.Context(), cmd, git.Repo{}, git.Changes{}, first, regenerate); err != nil {
 		t.Fatalf("confirmAndCommit: %v", err)
 	}
@@ -80,9 +80,9 @@ func TestConfirmRegenerateError(t *testing.T) {
 	cmd.SetOut(&bytes.Buffer{})
 
 	want := errors.New("boom")
-	regenerate := func() (commit.Message, error) { return commit.Message{}, want }
+	regenerate := func() (draft, error) { return draft{}, want }
 
-	err := confirmAndCommit(t.Context(), cmd, git.Repo{}, git.Changes{}, commit.Message{Subject: "x"}, regenerate)
+	err := confirmAndCommit(t.Context(), cmd, git.Repo{}, git.Changes{}, draft{msg: commit.Message{Subject: "x"}}, regenerate)
 	if !errors.Is(err, want) {
 		t.Errorf("confirmAndCommit error = %v, want %v", err, want)
 	}

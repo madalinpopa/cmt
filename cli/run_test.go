@@ -144,6 +144,84 @@ func TestYesCommitsOnlyGivenPaths(t *testing.T) {
 	}
 }
 
+type modifyingProvider struct {
+	fakeProvider
+	calls  int
+	modify func()
+}
+
+func (m *modifyingProvider) Generate(ctx context.Context, p commit.Prompt) (commit.Message, error) {
+	m.calls++
+	if m.calls == 1 {
+		m.modify()
+	}
+	return m.fakeProvider.Generate(ctx, p)
+}
+
+func TestYesRejectsChangesModifiedDuringGeneration(t *testing.T) {
+	t.Parallel()
+	dir := newTestRepo(t)
+	writeFile(t, dir, "a.txt", "a\nfirst\n")
+
+	p := &modifyingProvider{
+		msg:    commit.Message{Type: "fix", Subject: "change a"},
+		modify: func() { writeFile(t, dir, "a.txt", "a\nsecond\n") },
+	}
+	cmd := &command.Command{}
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+
+	r := newTestRunner(dir, nil, nil)
+	r.newProvider = func(string, string) (commit.Provider, error) { return p, nil }
+	if err := r.run(t.Context(), cmd, rootOptions{yes: true, all: true}, nil); !errors.Is(err, errChangesModified) {
+		t.Fatalf("run error = %v, want %v", err, errChangesModified)
+	}
+	if log := gitCmd(t, dir, "log", "--format=%s"); strings.TrimSpace(log) != "feat: add files" {
+		t.Errorf("commit was created: %q", log)
+	}
+}
+
+func TestConfirmRegeneratesWhenChangesModified(t *testing.T) {
+	t.Parallel()
+	dir := newTestRepo(t)
+	writeFile(t, dir, "a.txt", "a\nfirst\n")
+	repo := git.Repo{Dir: dir}
+	changes := git.Changes{All: true}
+
+	snapshot, err := repo.Snapshot(t.Context(), changes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, dir, "a.txt", "a\nsecond\n")
+
+	calls := 0
+	regenerate := func() (draft, error) {
+		calls++
+		snapshot, err := repo.Snapshot(t.Context(), changes)
+		return draft{msg: commit.Message{Type: "fix", Subject: "second"}, snapshot: snapshot}, err
+	}
+
+	cmd := &command.Command{}
+	cmd.SetIn(strings.NewReader("y\ny\n"))
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	first := draft{msg: commit.Message{Type: "fix", Subject: "first"}, snapshot: snapshot}
+	if err := confirmAndCommit(t.Context(), cmd, repo, changes, first, regenerate); err != nil {
+		t.Fatalf("confirmAndCommit: %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("regenerate calls = %d, want 1", calls)
+	}
+	if !strings.Contains(errOut.String(), "regenerating") {
+		t.Errorf("stderr = %q; want regeneration notice", errOut.String())
+	}
+	if log := gitCmd(t, dir, "log", "-1", "--format=%s"); strings.TrimSpace(log) != "fix: second" {
+		t.Errorf("last commit = %q, want fix: second", log)
+	}
+}
+
 func TestRunNothingToCommit(t *testing.T) {
 	t.Parallel()
 	dir := newTestRepo(t)
