@@ -18,7 +18,20 @@ const recentCommitCount = 10
 
 var errNothingToCommit = errors.New("nothing to commit; stage changes with git add, use --all, or pass paths")
 
-func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args []string) error {
+type runner struct {
+	repo        git.Repo
+	newProvider func(model string) commit.Provider
+	getenv      func(key string) string
+}
+
+func defaultRunner() runner {
+	return runner{
+		newProvider: func(model string) commit.Provider { return anthropic.New(model) },
+		getenv:      os.Getenv,
+	}
+}
+
+func (r runner) run(ctx context.Context, cmd *command.Command, opts rootOptions, args []string) error {
 	if opts.all && len(args) > 0 {
 		return &command.UsageError{Message: "--all cannot be combined with paths"}
 	}
@@ -27,12 +40,12 @@ func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args [
 		return errors.New("stdin is not a terminal; use --yes to commit or --dry-run to only print the message")
 	}
 
-	maxDiffBytes, err := parseMaxDiffBytes(os.Getenv("CMT_MAX_DIFF_BYTES"))
+	maxDiffBytes, err := parseMaxDiffBytes(r.getenv("CMT_MAX_DIFF_BYTES"))
 	if err != nil {
 		return err
 	}
 
-	repo := git.Repo{}
+	repo := r.repo
 	changes := git.Changes{All: opts.all, Paths: args}
 
 	in, err := collectInput(ctx, repo, changes, maxDiffBytes, opts)
@@ -45,7 +58,7 @@ func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args [
 		}
 	}
 
-	provider := anthropic.New(opts.model)
+	provider := r.newProvider(opts.model)
 	generate := func() (commit.Message, error) {
 		return commit.Generate(ctx, provider, in)
 	}

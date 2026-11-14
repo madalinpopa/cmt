@@ -31,7 +31,7 @@ cmt -a -y
 cmt --dry-run -- README.md cli/
 cmt --model claude-opus-5-5`,
 		Run: func(ctx context.Context, cmd *command.Command, args []string) error {
-			return runRoot(ctx, cmd, opts, args)
+			return defaultRunner().run(ctx, cmd, opts, args)
 		},
 	}
 

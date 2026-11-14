@@ -113,7 +113,7 @@ func TestRunRootRequiresTerminal(t *testing.T) {
 	cmd := &command.Command{}
 	cmd.SetIn(strings.NewReader(""))
 
-	err := runRoot(t.Context(), cmd, rootOptions{}, nil)
+	err := defaultRunner().run(t.Context(), cmd, rootOptions{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "not a terminal") {
 		t.Errorf("runRoot error = %v", err)
 	}
@@ -121,7 +121,7 @@ func TestRunRootRequiresTerminal(t *testing.T) {
 
 func TestRunRootRejectsAllWithPaths(t *testing.T) {
 	t.Parallel()
-	err := runRoot(t.Context(), &command.Command{}, rootOptions{all: true, dryRun: true}, []string{"a.txt"})
+	err := defaultRunner().run(t.Context(), &command.Command{}, rootOptions{all: true, dryRun: true}, []string{"a.txt"})
 	if _, ok := errors.AsType[*command.UsageError](err); !ok {
 		t.Errorf("runRoot error = %v; want *command.UsageError", err)
 	}
