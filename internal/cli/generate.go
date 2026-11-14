@@ -12,6 +12,7 @@ import (
 	"github.com/madalinpopa/cmt/internal/commit"
 	"github.com/madalinpopa/cmt/internal/provider/anthropic"
 	"github.com/madalinpopa/cmt/internal/provider/copilot"
+	"github.com/madalinpopa/cmt/internal/provider/openai"
 	"github.com/madalinpopa/cmt/internal/vcs"
 )
 
@@ -34,10 +35,12 @@ func newProvider(name, model string) (commit.Provider, error) {
 	switch name {
 	case "", "anthropic":
 		return anthropic.New(cmp.Or(model, anthropic.DefaultModel)), nil
+	case "openai":
+		return openai.New(cmp.Or(model, openai.DefaultModel)), nil
 	case "copilot":
 		return copilot.New(cmp.Or(model, copilot.DefaultModel))
 	default:
-		return nil, &command.UsageError{Message: fmt.Sprintf("unknown provider %q; use anthropic or copilot", name)}
+		return nil, &command.UsageError{Message: fmt.Sprintf("unknown provider %q; use anthropic, openai, or copilot", name)}
 	}
 }
 

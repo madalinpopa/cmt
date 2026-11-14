@@ -266,13 +266,13 @@ func TestRunClosesProvider(t *testing.T) {
 
 func TestNewProvider(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"", "anthropic"} {
+	for _, name := range []string{"", "anthropic", "openai"} {
 		if _, err := newProvider(name, ""); err != nil {
 			t.Errorf("newProvider(%q): %v", name, err)
 		}
 	}
-	_, err := newProvider("openai", "")
+	_, err := newProvider("gemini", "")
 	if _, ok := errors.AsType[*command.UsageError](err); !ok {
-		t.Errorf("newProvider(openai) error = %v; want *command.UsageError", err)
+		t.Errorf("newProvider(gemini) error = %v; want *command.UsageError", err)
 	}
 }
