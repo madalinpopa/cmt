@@ -16,11 +16,11 @@ import (
 
 const recentCommitCount = 10
 
-var errNothingToCommit = errors.New("nothing to commit; stage changes with git add or use --all")
+var errNothingToCommit = errors.New("nothing to commit; stage changes with git add, use --all, or pass paths")
 
 func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args []string) error {
-	if len(args) > 0 {
-		return &command.UsageError{Message: "unexpected arguments: " + strings.Join(args, " ")}
+	if opts.all && len(args) > 0 {
+		return &command.UsageError{Message: "--all cannot be combined with paths"}
 	}
 	interactive := !opts.dryRun && !opts.yes
 	if interactive && !isTerminal(cmd.In()) {
@@ -33,10 +33,7 @@ func runRoot(ctx context.Context, cmd *command.Command, opts rootOptions, args [
 	}
 
 	repo := git.Repo{}
-	changes := git.Staged
-	if opts.all {
-		changes = git.Tracked
-	}
+	changes := git.Changes{All: opts.all, Paths: args}
 
 	in, err := collectInput(ctx, repo, changes, maxDiffBytes, opts)
 	if err != nil {
