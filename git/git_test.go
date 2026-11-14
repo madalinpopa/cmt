@@ -81,7 +81,7 @@ func TestEmptyRepo(t *testing.T) {
 		t.Fatalf("RecentCommits = %q, %v; want nil", commits, err)
 	}
 
-	for _, c := range []Changes{Staged, Tracked} {
+	for _, c := range []Changes{{}, {All: true}} {
 		diff, err := r.Diff(ctx, c)
 		if err != nil || diff != "" {
 			t.Fatalf("Diff(%v) = %q, %v; want empty", c, diff, err)
@@ -106,20 +106,20 @@ func TestDiffStaged(t *testing.T) {
 	r := setupMixedChanges(t)
 	ctx := t.Context()
 
-	diff, err := r.Diff(ctx, Staged)
+	diff, err := r.Diff(ctx, Changes{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(diff, "+staged") || strings.Contains(diff, "unstaged") {
-		t.Errorf("Diff(Staged) = %q; want only staged changes", diff)
+		t.Errorf("Diff(Changes{}) = %q; want only staged changes", diff)
 	}
 
-	stat, err := r.Stat(ctx, Staged)
+	stat, err := r.Stat(ctx, Changes{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(stat, "a.txt") || !strings.Contains(stat, "1 insertion") {
-		t.Errorf("Stat(Staged) = %q", stat)
+		t.Errorf("Stat(Changes{}) = %q", stat)
 	}
 }
 
@@ -128,20 +128,20 @@ func TestDiffTracked(t *testing.T) {
 	r := setupMixedChanges(t)
 	ctx := t.Context()
 
-	diff, err := r.Diff(ctx, Tracked)
+	diff, err := r.Diff(ctx, Changes{All: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(diff, "+staged") || !strings.Contains(diff, "+unstaged") || strings.Contains(diff, "untracked.txt") {
-		t.Errorf("Diff(Tracked) = %q; want staged and unstaged tracked changes only", diff)
+		t.Errorf("Diff(Changes{All: true}) = %q; want staged and unstaged tracked changes only", diff)
 	}
 
-	stat, err := r.Stat(ctx, Tracked)
+	stat, err := r.Stat(ctx, Changes{All: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(stat, "2 insertions") {
-		t.Errorf("Stat(Tracked) = %q", stat)
+		t.Errorf("Stat(Changes{All: true}) = %q", stat)
 	}
 }
 
@@ -158,7 +158,7 @@ func TestDiffExcludes(t *testing.T) {
 	gitCmd(t, r.Dir, "add", "-A")
 
 	for _, dir := range []string{r.Dir, filepath.Join(r.Dir, "sub")} {
-		diff, err := Repo{Dir: dir}.Diff(t.Context(), Staged, "**/go.sum")
+		diff, err := Repo{Dir: dir}.Diff(t.Context(), Changes{}, "**/go.sum")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,7 +172,7 @@ func TestDiffExcludes(t *testing.T) {
 		}
 	}
 
-	stat, err := r.Stat(t.Context(), Staged)
+	stat, err := r.Stat(t.Context(), Changes{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,12 +188,12 @@ func TestDiffTrackedWithoutCommits(t *testing.T) {
 	gitCmd(t, r.Dir, "add", "a.txt")
 	writeFile(t, r.Dir, "a.txt", "one\ntwo\n")
 
-	diff, err := r.Diff(t.Context(), Tracked)
+	diff, err := r.Diff(t.Context(), Changes{All: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(diff, "+one") || !strings.Contains(diff, "+two") {
-		t.Errorf("Diff(Tracked) = %q", diff)
+		t.Errorf("Diff(Changes{All: true}) = %q", diff)
 	}
 }
 
@@ -217,14 +217,15 @@ func lastCommit(t *testing.T, r Repo) (message, files string) {
 func TestCommit(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
+		name         string
 		changes      Changes
 		wantUnstaged bool
 	}{
-		{Staged, false},
-		{Tracked, true},
+		{"staged", Changes{}, false},
+		{"all", Changes{All: true}, true},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprint(tt.changes), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			r := setupMixedChanges(t)
 			message := "feat(a): extend a\n\nAdd more lines to a."
@@ -254,7 +255,7 @@ func TestCommitEdited(t *testing.T) {
 	gitCmd(t, r.Dir, "config", "core.editor", "sed -i.bak -e s/extend/edit/")
 
 	var stdout bytes.Buffer
-	err := r.CommitEdited(t.Context(), "feat(a): extend a\n\nAdd more lines to a.\n", Tracked, nil, &stdout, io.Discard)
+	err := r.CommitEdited(t.Context(), "feat(a): extend a\n\nAdd more lines to a.\n", Changes{All: true}, nil, &stdout, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +277,7 @@ func TestCommitEditedEmptyMessage(t *testing.T) {
 	r := setupMixedChanges(t)
 	gitCmd(t, r.Dir, "config", "core.editor", "cp /dev/null")
 
-	err := r.CommitEdited(t.Context(), "feat(a): extend a", Staged, nil, io.Discard, io.Discard)
+	err := r.CommitEdited(t.Context(), "feat(a): extend a", Changes{}, nil, io.Discard, io.Discard)
 	if _, ok := errors.AsType[*Error](err); !ok {
 		t.Fatalf("CommitEdited error = %v; want *Error", err)
 	}
@@ -285,12 +286,106 @@ func TestCommitEditedEmptyMessage(t *testing.T) {
 	}
 }
 
+func setupTwoFiles(t *testing.T) Repo {
+	t.Helper()
+	r := newRepo(t)
+	if err := os.Mkdir(filepath.Join(r.Dir, "sub"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, r.Dir, "a.txt", "a\n")
+	writeFile(t, r.Dir, "sub/b.txt", "b\n")
+	gitCmd(t, r.Dir, "add", "-A")
+	gitCmd(t, r.Dir, "commit", "-m", "feat: add files")
+
+	writeFile(t, r.Dir, "a.txt", "a\nstaged a\n")
+	gitCmd(t, r.Dir, "add", "a.txt")
+	writeFile(t, r.Dir, "sub/b.txt", "b\nunstaged b\n")
+	return r
+}
+
+func TestDiffPaths(t *testing.T) {
+	t.Parallel()
+	r := setupTwoFiles(t)
+
+	for _, tt := range []struct {
+		dir  string
+		path string
+	}{
+		{r.Dir, "sub/b.txt"},
+		{filepath.Join(r.Dir, "sub"), "b.txt"},
+	} {
+		repo := Repo{Dir: tt.dir}
+		c := Changes{Paths: []string{tt.path}}
+
+		diff, err := repo.Diff(t.Context(), c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(diff, "+unstaged b") || strings.Contains(diff, "staged a") {
+			t.Errorf("Diff(%s from %s) = %q; want only b", tt.path, tt.dir, diff)
+		}
+
+		stat, err := repo.Stat(t.Context(), c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(stat, "b.txt") || strings.Contains(stat, "a.txt") {
+			t.Errorf("Stat(%s from %s) = %q; want only b", tt.path, tt.dir, stat)
+		}
+	}
+}
+
+func TestCommitPaths(t *testing.T) {
+	t.Parallel()
+	r := setupTwoFiles(t)
+
+	if _, err := r.Commit(t.Context(), "fix(b): extend b", Changes{Paths: []string{"sub/b.txt"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	gotMsg, diff := lastCommit(t, r)
+	if gotMsg != "fix(b): extend b" {
+		t.Errorf("commit message = %q", gotMsg)
+	}
+	if !strings.Contains(diff, "+unstaged b") || strings.Contains(diff, "staged a") {
+		t.Errorf("committed diff = %q; want only b", diff)
+	}
+
+	staged, err := r.Diff(t.Context(), Changes{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(staged, "+staged a") {
+		t.Errorf("a.txt is no longer staged: %q", staged)
+	}
+}
+
+func TestCommitPathsWithoutCommits(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t)
+	writeFile(t, r.Dir, "a.txt", "a\n")
+	writeFile(t, r.Dir, "b.txt", "b\n")
+	gitCmd(t, r.Dir, "add", "-A")
+
+	c := Changes{Paths: []string{"a.txt"}}
+	diff, err := r.Diff(t.Context(), c)
+	if err != nil || !strings.Contains(diff, "+++ b/a.txt") || strings.Contains(diff, "b.txt") {
+		t.Fatalf("Diff = %q, %v", diff, err)
+	}
+	if _, err := r.Commit(t.Context(), "feat: add a", c); err != nil {
+		t.Fatal(err)
+	}
+	if _, files := lastCommit(t, r); strings.Contains(files, "b.txt") {
+		t.Errorf("initial commit includes b.txt: %q", files)
+	}
+}
+
 func TestCommitNothingStaged(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t)
 	commitFile(t, r, "a.txt", "a\n", "feat: add a")
 
-	if _, err := r.Commit(t.Context(), "fix: nothing", Staged); err == nil {
+	if _, err := r.Commit(t.Context(), "fix: nothing", Changes{}); err == nil {
 		t.Error("Commit: want error")
 	}
 }

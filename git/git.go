@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -33,19 +34,27 @@ func (e *Error) Unwrap() error {
 	return e.Err
 }
 
-type Changes int
+type Changes struct {
+	All   bool
+	Paths []string
+}
 
-const (
-	Staged Changes = iota
-	Tracked
-)
+func (c Changes) againstHead() bool {
+	return c.All || len(c.Paths) > 0
+}
+
+func (c Changes) pathspecs() []string {
+	if len(c.Paths) > 0 {
+		return slices.Clone(c.Paths)
+	}
+	return []string{":/"}
+}
 
 func (r Repo) Diff(ctx context.Context, c Changes, excludeGlobs ...string) (string, error) {
-	pathspecs := []string{
-		":/",
+	pathspecs := append(c.pathspecs(),
 		":(top,exclude,attr:linguist-generated)",
 		":(top,exclude,attr:linguist-generated=true)",
-	}
+	)
 	for _, glob := range excludeGlobs {
 		pathspecs = append(pathspecs, ":(top,exclude,glob)"+glob)
 	}
@@ -53,7 +62,7 @@ func (r Repo) Diff(ctx context.Context, c Changes, excludeGlobs ...string) (stri
 }
 
 func (r Repo) Stat(ctx context.Context, c Changes) (string, error) {
-	return r.diff(ctx, c, []string{"--no-color", "--stat"}, nil)
+	return r.diff(ctx, c, []string{"--no-color", "--stat"}, c.pathspecs())
 }
 
 func (r Repo) Commit(ctx context.Context, message string, c Changes) (string, error) {
@@ -88,15 +97,19 @@ func (r Repo) CommitEdited(ctx context.Context, message string, c Changes, stdin
 
 func commitArgs(c Changes, flags ...string) []string {
 	args := append([]string{"commit"}, flags...)
-	if c == Tracked {
+	if c.All {
 		args = append(args, "--all")
+	}
+	if len(c.Paths) > 0 {
+		args = append(args, "--only", "--")
+		args = append(args, c.Paths...)
 	}
 	return args
 }
 
 func (r Repo) diff(ctx context.Context, c Changes, flags, pathspecs []string) (string, error) {
 	args := []string{"diff", "--cached"}
-	if c == Tracked {
+	if c.againstHead() {
 		base, err := r.headOrEmptyTree(ctx)
 		if err != nil {
 			return "", err
@@ -105,10 +118,8 @@ func (r Repo) diff(ctx context.Context, c Changes, flags, pathspecs []string) (s
 	}
 
 	args = append(args, flags...)
-	if len(pathspecs) > 0 {
-		args = append(args, "--")
-		args = append(args, pathspecs...)
-	}
+	args = append(args, "--")
+	args = append(args, pathspecs...)
 	return r.run(ctx, args...)
 }
 
