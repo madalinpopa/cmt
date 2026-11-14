@@ -13,7 +13,7 @@ Set TypingSpeed 45ms
 Set WindowBar Colorful
 
 Hide
-Type `export PS1='> ' PATH="$PWD/dist/demo:$PATH" && go build -o dist/demo/cmt . && cd "$(mktemp -d)" && git init -q -b main && git config user.name demo && git config user.email demo@example.com && git commit -q --allow-empty -m "chore: initial commit"`
+Type `export PS1='> ' PATH="$PWD/dist/demo:$PATH" && go build -o dist/demo/cmt ./cmd/cmt && cd "$(mktemp -d)" && git init -q -b main && git config user.name demo && git config user.email demo@example.com && git commit -q --allow-empty -m "chore: initial commit"`
 Enter
 Type `mkdir -p cli docs && printf 'package cli\n\nfunc Greet(name string) string {\n\treturn "Hello, " + name\n}\n' > cli/greet.go && clear`
 Enter

@@ -3,7 +3,7 @@ version: 2
 project_name: cmt
 
 builds:
-  - main: .
+  - main: ./cmd/cmt
     env: [CGO_ENABLED=0]
     goos: [linux, darwin]
     goarch: [amd64, arm64]
