@@ -17,9 +17,12 @@ import (
 )
 
 const (
-	DefaultModel   = "auto"
-	cleanupTimeout = 5 * time.Second
+	DefaultModel    = "auto"
+	generateTimeout = 5 * time.Minute
+	cleanupTimeout  = 5 * time.Second
 )
+
+var errGenerateTimeout = fmt.Errorf("copilot: no response within %s", generateTimeout)
 
 type Provider struct {
 	client *sdk.Client
@@ -54,18 +57,32 @@ func builtinMCPServers() []string {
 	return []string{"github-mcp-server", "githubiq"}
 }
 
-func (p *Provider) disabledMCPServers(ctx context.Context) []string {
-	names := builtinMCPServers()
+func (p *Provider) disabledMCPServers(ctx context.Context) ([]string, error) {
 	config, err := p.client.RPC.MCP.Config().List(ctx)
 	if err != nil {
-		return names
+		return nil, fmt.Errorf("copilot: list MCP servers: %w", err)
 	}
-	return append(names, slices.Sorted(maps.Keys(config.Servers))...)
+	return slices.Concat(builtinMCPServers(), slices.Sorted(maps.Keys(config.Servers))), nil
 }
 
-func (p *Provider) Generate(ctx context.Context, pr commit.Prompt) (msg commit.Message, err error) {
+func (p *Provider) Generate(ctx context.Context, pr commit.Prompt) (commit.Message, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, generateTimeout, errGenerateTimeout)
+	defer cancel()
+
+	msg, err := p.generate(ctx, pr)
+	if cause := context.Cause(ctx); errors.Is(cause, errGenerateTimeout) {
+		return commit.Message{}, cause
+	}
+	return msg, err
+}
+
+func (p *Provider) generate(ctx context.Context, pr commit.Prompt) (msg commit.Message, err error) {
 	if err := p.client.Start(ctx); err != nil {
 		return commit.Message{}, fmt.Errorf("copilot: start runtime: %w", err)
+	}
+	disabled, err := p.disabledMCPServers(ctx)
+	if err != nil {
+		return commit.Message{}, err
 	}
 
 	session, err := p.client.CreateSession(ctx, &sdk.CreateSessionOptions{
@@ -73,7 +90,10 @@ func (p *Provider) Generate(ctx context.Context, pr commit.Prompt) (msg commit.M
 		Model:                 p.model,
 		EnableConfigDiscovery: new(false),
 		Tools:                 sdk.SessionToolOptions{AvailableTools: []string{}},
-		MCP:                   sdk.SessionMCPOptions{DisabledServers: p.disabledMCPServers(ctx)},
+		MCP:                   sdk.SessionMCPOptions{DisabledServers: disabled},
+		Hooks:                 sdk.SessionHookOptions{EnableRepositoryHooks: new(false)},
+		Skills:                sdk.SessionSkillOptions{Enabled: new(false)},
+		Git:                   sdk.SessionGitOptions{EnableHostGitOperations: new(false)},
 		Instructions:          sdk.CreateSessionInstructionOptions{SkipCustomInstructions: new(true)},
 		SystemMessage:         &sdk.SystemMessageConfig{Mode: "replace", Content: pr.System},
 	})

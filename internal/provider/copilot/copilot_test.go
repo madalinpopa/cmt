@@ -27,6 +27,7 @@ const (
 	envFakeSkipDelete = "CMT_FAKE_COPILOT_SKIP_DELETE"
 	replyError        = "!error"
 	replyWait         = "!wait"
+	replyMCPError     = "!mcp-error"
 )
 
 func TestMain(m *testing.M) {
@@ -108,7 +109,7 @@ func runFakeRuntime(r io.Reader, w io.Writer, reply, logPath string) (err error)
 				},
 			}
 		case "mcp.config.list":
-			if reply == replyError {
+			if reply == replyMCPError {
 				delete(resp, "result")
 				resp["error"] = map[string]any{"code": -32603, "message": "config unavailable"}
 				break
@@ -199,6 +200,12 @@ func TestGenerate(t *testing.T) {
 	if instructions["skipCustomInstructions"] != true {
 		t.Errorf("instructions = %v, want skipCustomInstructions", instructions)
 	}
+	for group, key := range map[string]string{"hooks": "enableRepositoryHooks", "skills": "enabled", "git": "enableHostGitOperations"} {
+		options, _ := create[group].(map[string]any)
+		if options[key] != false {
+			t.Errorf("%s.%s = %v, want false", group, key, options[key])
+		}
+	}
 	system, _ := create["systemMessage"].(map[string]any)
 	if system["mode"] != "replace" || system["content"] != prompt.System {
 		t.Errorf("systemMessage = %v", system)
@@ -252,6 +259,23 @@ func TestGenerateErrors(t *testing.T) {
 				t.Error("session.create did not disable MCP servers")
 			}
 		})
+	}
+}
+
+func TestGenerateMCPConfigError(t *testing.T) {
+	p, logPath := newFakeProvider(t, replyMCPError)
+	t.Cleanup(func() {
+		if err := p.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
+
+	_, err := p.Generate(t.Context(), commit.Prompt{User: "diff"})
+	if err == nil || !strings.Contains(err.Error(), "config unavailable") {
+		t.Errorf("Generate error = %v, want config unavailable", err)
+	}
+	if _, ok := readRequests(t, logPath)["session.create"]; ok {
+		t.Error("session.create was called despite MCP config error")
 	}
 }
 
