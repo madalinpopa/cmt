@@ -5,6 +5,7 @@ import (
 	"iter"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 const defaultMaxDiffBytes = 200_000
@@ -54,7 +55,7 @@ func truncateDiff(diff string, limit int) (string, bool) {
 	var b strings.Builder
 	for file := range diffFiles(diff) {
 		if b.Len()+len(file) > limit {
-			break
+			continue
 		}
 		b.WriteString(file)
 	}
@@ -62,7 +63,11 @@ func truncateDiff(diff string, limit int) (string, bool) {
 		return b.String(), true
 	}
 
-	cut := diff[:limit]
+	end := limit
+	for end > 0 && !utf8.RuneStart(diff[end]) {
+		end--
+	}
+	cut := diff[:end]
 	if i := strings.LastIndexByte(cut, '\n'); i >= 0 {
 		cut = cut[:i+1]
 	}

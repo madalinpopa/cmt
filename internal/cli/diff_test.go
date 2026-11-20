@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 const (
@@ -46,6 +47,26 @@ func TestTruncateDiff(t *testing.T) {
 				t.Errorf("len = %d, over limit %d", len(got), tt.limit)
 			}
 		})
+	}
+}
+
+func TestTruncateDiffSkipsOversizedFile(t *testing.T) {
+	t.Parallel()
+	large := "diff --git a/large.txt b/large.txt\n+" + strings.Repeat("x", 100) + "\n"
+	got, truncated := truncateDiff(fileA+large+fileB, len(fileA)+len(fileB))
+	if want := fileA + fileB; got != want || !truncated {
+		t.Errorf("truncateDiff = %q, %v; want %q, true", got, truncated, want)
+	}
+}
+
+func TestTruncateDiffKeepsValidUTF8(t *testing.T) {
+	t.Parallel()
+	diff := "+" + strings.Repeat("é", 10)
+	for limit := 1; limit < len(diff); limit++ {
+		got, _ := truncateDiff(diff, limit)
+		if !utf8.ValidString(got) || len(got) > limit {
+			t.Errorf("truncateDiff(limit=%d) = %q; want valid UTF-8 within limit", limit, got)
+		}
 	}
 }
 
