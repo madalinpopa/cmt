@@ -2,6 +2,7 @@ package vcs
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMain(m *testing.M) {
@@ -382,6 +384,38 @@ func TestCommitEdited(t *testing.T) {
 	}
 	if !strings.Contains(diff, "+unstaged") {
 		t.Errorf("committed diff = %q; want tracked changes", diff)
+	}
+}
+
+func TestCommitEditedSurvivesCancel(t *testing.T) {
+	t.Parallel()
+	r := setupMixedChanges(t)
+	gitCmd(t, r.Dir, "config", "core.editor", "sleep 1 && true")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	time.AfterFunc(200*time.Millisecond, cancel)
+	if err := r.CommitEdited(ctx, "feat(a): extend a", Changes{}, nil, io.Discard, io.Discard); err != nil {
+		t.Fatalf("CommitEdited error = %v; want commit to finish after cancel", err)
+	}
+	if gotMsg, _ := lastCommit(t, r); gotMsg != "feat(a): extend a" {
+		t.Errorf("commit message = %q", gotMsg)
+	}
+}
+
+func TestCommitCanceledBeforeStart(t *testing.T) {
+	t.Parallel()
+	r := setupMixedChanges(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if _, err := r.Commit(ctx, "feat(a): extend a", Changes{}); !errors.Is(err, context.Canceled) {
+		t.Errorf("Commit error = %v; want %v", err, context.Canceled)
+	}
+	if err := r.CommitEdited(ctx, "feat(a): extend a", Changes{}, nil, io.Discard, io.Discard); !errors.Is(err, context.Canceled) {
+		t.Errorf("CommitEdited error = %v; want %v", err, context.Canceled)
+	}
+	if commits, err := r.RecentCommits(t.Context(), 5); err != nil || len(commits) != 1 {
+		t.Errorf("RecentCommits = %q, %v; want only the initial commit", commits, err)
 	}
 }
 

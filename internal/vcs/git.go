@@ -77,11 +77,17 @@ func (r Repo) Snapshot(ctx context.Context, c Changes) (string, error) {
 }
 
 func (r Repo) Commit(ctx context.Context, message string, c Changes) (string, error) {
-	out, err := r.runInput(ctx, strings.NewReader(message), commitArgs(c, "--file=-")...)
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	out, err := r.runInput(context.WithoutCancel(ctx), strings.NewReader(message), commitArgs(c, "--file=-")...)
 	return strings.TrimSpace(out), err
 }
 
 func (r Repo) CommitEdited(ctx context.Context, message string, c Changes, stdin io.Reader, stdout, stderr io.Writer) (err error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	f, err := os.CreateTemp("", "cmt-*.txt")
 	if err != nil {
 		return err
@@ -96,7 +102,7 @@ func (r Repo) CommitEdited(ctx context.Context, message string, c Changes, stdin
 	}
 
 	args := commitArgs(c, "--file="+f.Name(), "--edit")
-	cmd := r.command(ctx, args)
+	cmd := r.command(context.WithoutCancel(ctx), args)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
