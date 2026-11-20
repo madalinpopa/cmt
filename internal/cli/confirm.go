@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -26,13 +25,16 @@ const (
 
 var errNoAnswer = errors.New("canceled: no answer on stdin")
 
-func askChoice(r *bufio.Reader, w io.Writer) (choice, error) {
+func askChoice(ctx context.Context, r io.Reader, w io.Writer) (choice, error) {
 	for {
 		if _, err := fmt.Fprint(w, "[y] commit  [e] edit  [r] regenerate  [n] cancel: "); err != nil {
 			return 0, err
 		}
 
-		line, readErr := r.ReadString('\n')
+		line, readErr := readLineContext(ctx, r)
+		if ctx.Err() != nil {
+			return 0, context.Cause(ctx)
+		}
 		switch strings.ToLower(strings.TrimSpace(line)) {
 		case "y", "yes":
 			return choiceCommit, nil
@@ -56,6 +58,42 @@ func askChoice(r *bufio.Reader, w io.Writer) (choice, error) {
 	}
 }
 
+type lineResult struct {
+	line string
+	err  error
+}
+
+func readLineContext(ctx context.Context, r io.Reader) (string, error) {
+	lines := make(chan lineResult, 1)
+	go func() {
+		line, err := readLine(r)
+		lines <- lineResult{line, err}
+	}()
+	select {
+	case <-ctx.Done():
+		return "", context.Cause(ctx)
+	case res := <-lines:
+		return res.line, res.err
+	}
+}
+
+func readLine(r io.Reader) (string, error) {
+	var line []byte
+	var buf [1]byte
+	for {
+		n, err := r.Read(buf[:])
+		if n > 0 {
+			line = append(line, buf[0])
+			if buf[0] == '\n' {
+				return string(line), nil
+			}
+		}
+		if err != nil {
+			return string(line), err
+		}
+	}
+}
+
 func isTerminal(r io.Reader) bool {
 	f, ok := r.(*os.File)
 	if !ok {
@@ -65,13 +103,12 @@ func isTerminal(r io.Reader) bool {
 }
 
 func confirmAndCommit(ctx context.Context, cmd *command.Command, repo vcs.Repo, changes vcs.Changes, d draft, regenerate func() (draft, error)) error {
-	answers := bufio.NewReader(cmd.In())
 	for {
 		if _, err := fmt.Fprintf(cmd.Out(), "%s\n\n", d.msg); err != nil {
 			return err
 		}
 
-		c, err := askChoice(answers, cmd.Out())
+		c, err := askChoice(ctx, cmd.In(), cmd.Out())
 		if err != nil {
 			return err
 		}

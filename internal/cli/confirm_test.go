@@ -1,12 +1,14 @@
 package cli
 
 import (
-	"bufio"
 	"bytes"
+	"context"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/madalinpopa/cmt/internal/command"
 	"github.com/madalinpopa/cmt/internal/commit"
@@ -35,7 +37,7 @@ func TestAskChoice(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var out bytes.Buffer
-			got, err := askChoice(bufio.NewReader(strings.NewReader(tt.input)), &out)
+			got, err := askChoice(t.Context(), strings.NewReader(tt.input), &out)
 			if got != tt.want || !errors.Is(err, tt.wantErr) {
 				t.Errorf("askChoice = %v, %v; want %v, %v", got, err, tt.want, tt.wantErr)
 			}
@@ -43,6 +45,37 @@ func TestAskChoice(t *testing.T) {
 				t.Errorf("retry prompt shown = %v, want %v:\n%s", retried, tt.wantRetry, out.String())
 			}
 		})
+	}
+}
+
+func TestAskChoiceCanceled(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	r, w := io.Pipe()
+	t.Cleanup(func() {
+		if err := w.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	time.AfterFunc(50*time.Millisecond, cancel)
+
+	if _, err := askChoice(ctx, r, io.Discard); !errors.Is(err, context.Canceled) {
+		t.Errorf("askChoice error = %v, want %v", err, context.Canceled)
+	}
+}
+
+func TestReadLineLeavesRestUnread(t *testing.T) {
+	t.Parallel()
+	r := strings.NewReader("e\nrest")
+	if line, err := readLine(r); line != "e\n" || err != nil {
+		t.Fatalf("readLine = %q, %v; want \"e\\n\", nil", line, err)
+	}
+	rest, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(rest) != "rest" {
+		t.Errorf("unread input = %q, want \"rest\"", rest)
 	}
 }
 
