@@ -36,9 +36,10 @@ func TestExecuteFlags(t *testing.T) {
 		{"no args", nil, nil, false, ""},
 		{"flags only", []string{"--all", "-context", "x"}, nil, true, "x"},
 		{"flags then positional", []string{"--all", "--context=y", "a", "b"}, []string{"a", "b"}, true, "y"},
-		{"flags after positional are positional", []string{"a", "--all"}, []string{"a", "--all"}, false, ""},
+		{"flags after positional", []string{"a", "--all", "b", "--context", "x"}, []string{"a", "b"}, true, "x"},
 		{"terminator", []string{"--all", "--", "--context", "z"}, []string{"--context", "z"}, true, ""},
-		{"single dash is positional", []string{"-", "--all"}, []string{"-", "--all"}, false, ""},
+		{"terminator after positional", []string{"a", "--", "--all"}, []string{"a", "--all"}, false, ""},
+		{"single dash is positional", []string{"-", "--all"}, []string{"-"}, true, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

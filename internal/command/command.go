@@ -32,7 +32,7 @@ func (c *Command) Name() string {
 func (c *Command) Execute(ctx context.Context, args []string) error {
 	fs := c.Flags()
 
-	err := fs.Parse(args)
+	positional, err := parseInterleaved(fs, args)
 	if errors.Is(err, flag.ErrHelp) {
 		return c.PrintUsage(c.Out())
 	}
@@ -44,7 +44,25 @@ func (c *Command) Execute(ctx context.Context, args []string) error {
 	if c.Run == nil {
 		return c.PrintUsage(c.Out())
 	}
-	return c.Run(ctx, c, fs.Args())
+	return c.Run(ctx, c, positional)
+}
+
+func parseInterleaved(fs *flag.FlagSet, args []string) ([]string, error) {
+	var positional []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		rest := fs.Args()
+		if len(rest) == 0 {
+			return positional, nil
+		}
+		if consumed := len(args) - len(rest); consumed > 0 && args[consumed-1] == "--" {
+			return append(positional, rest...), nil
+		}
+		positional = append(positional, rest[0])
+		args = rest[1:]
+	}
 }
 
 func (c *Command) PrintUsage(w io.Writer) error {
