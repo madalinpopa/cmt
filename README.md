@@ -149,7 +149,7 @@ You can still write commit messages yourself:
 
 Flags take precedence over environment variables. The edit action resolves the editor in the same order as git: `GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`.
 
-The Copilot provider runs the Copilot CLI through the [GitHub Copilot SDK](https://github.com/github/copilot-sdk); sign in once with `copilot`. Requests count against your Copilot plan.
+The Copilot provider runs the Copilot CLI through the [Copilot SDK](https://github.com/microsoft/copilot-sdk); sign in once with `copilot`. Requests count against your Copilot plan.
 
 ### Data sent to the model
 
