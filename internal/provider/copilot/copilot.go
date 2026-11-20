@@ -11,7 +11,7 @@ import (
 	"slices"
 	"time"
 
-	sdk "github.com/github/copilot-sdk/go"
+	sdk "github.com/microsoft/copilot-sdk/go/v2"
 
 	"github.com/madalinpopa/cmt/internal/commit"
 )
@@ -32,8 +32,9 @@ func New(model string) (*Provider, error) {
 		return nil, err
 	}
 	client := sdk.NewClient(&sdk.ClientOptions{
-		Connection: sdk.StdioConnection{Path: path},
-		LogLevel:   "error",
+		Mode:          sdk.ModeCodingAgent,
+		Runtime:       sdk.SpawnedStdioConnection{Path: path},
+		Observability: sdk.ClientObservabilityOptions{LogLevel: "error"},
 	})
 	return &Provider{client: client, model: model}, nil
 }
@@ -67,14 +68,14 @@ func (p *Provider) Generate(ctx context.Context, pr commit.Prompt) (msg commit.M
 		return commit.Message{}, fmt.Errorf("copilot: start runtime: %w", err)
 	}
 
-	session, err := p.client.CreateSession(ctx, &sdk.SessionConfig{
-		ClientName:             "cmt",
-		Model:                  p.model,
-		AvailableTools:         []string{},
-		DisabledMCPServers:     p.disabledMCPServers(ctx),
-		EnableConfigDiscovery:  new(false),
-		SkipCustomInstructions: new(true),
-		SystemMessage:          &sdk.SystemMessageConfig{Mode: "replace", Content: pr.System},
+	session, err := p.client.CreateSession(ctx, &sdk.CreateSessionOptions{
+		ClientName:            "cmt",
+		Model:                 p.model,
+		EnableConfigDiscovery: new(false),
+		Tools:                 sdk.SessionToolOptions{AvailableTools: []string{}},
+		MCP:                   sdk.SessionMCPOptions{DisabledServers: p.disabledMCPServers(ctx)},
+		Instructions:          sdk.CreateSessionInstructionOptions{SkipCustomInstructions: new(true)},
+		SystemMessage:         &sdk.SystemMessageConfig{Mode: "replace", Content: pr.System},
 	})
 	if err != nil {
 		return commit.Message{}, fmt.Errorf("copilot: create session: %w", err)

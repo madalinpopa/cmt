@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	sdk "github.com/github/copilot-sdk/go"
+	sdk "github.com/microsoft/copilot-sdk/go/v2"
 
 	"github.com/madalinpopa/cmt/internal/commit"
 )
@@ -187,11 +187,17 @@ func TestGenerate(t *testing.T) {
 	if create["model"] != DefaultModel {
 		t.Errorf("model = %v", create["model"])
 	}
-	if tools, ok := create["availableTools"].([]any); !ok || len(tools) != 0 {
-		t.Errorf("availableTools = %v, want []", create["availableTools"])
+	tools, _ := create["tools"].(map[string]any)
+	if available, ok := tools["availableTools"].([]any); !ok || len(available) != 0 {
+		t.Errorf("tools.availableTools = %v, want []", tools["availableTools"])
 	}
-	if got, want := fmt.Sprint(create["disabledMcpServers"]), "[github-mcp-server githubiq context7 playwright]"; got != want {
-		t.Errorf("disabledMcpServers = %s, want %s", got, want)
+	mcp, _ := create["mcp"].(map[string]any)
+	if got, want := fmt.Sprint(mcp["disabledServers"]), "[github-mcp-server githubiq context7 playwright]"; got != want {
+		t.Errorf("mcp.disabledServers = %s, want %s", got, want)
+	}
+	instructions, _ := create["instructions"].(map[string]any)
+	if instructions["skipCustomInstructions"] != true {
+		t.Errorf("instructions = %v, want skipCustomInstructions", instructions)
 	}
 	system, _ := create["systemMessage"].(map[string]any)
 	if system["mode"] != "replace" || system["content"] != prompt.System {
@@ -241,7 +247,8 @@ func TestGenerateErrors(t *testing.T) {
 			if _, ok := requests["session.delete"]; !ok {
 				t.Error("session.delete was not called")
 			}
-			if _, ok := requests["session.create"]["disabledMcpServers"]; !ok {
+			mcp, _ := requests["session.create"]["mcp"].(map[string]any)
+			if _, ok := mcp["disabledServers"]; !ok {
 				t.Error("session.create did not disable MCP servers")
 			}
 		})
